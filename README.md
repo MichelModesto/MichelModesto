@@ -14,7 +14,7 @@
 [![Email](https://img.shields.io/badge/-Email-8b008b?style=for-the-badge&logo=gmail&logoColor=white)](mailto:michel.mx10@gmail.com)
 [![GitHub](https://img.shields.io/badge/-GitHub-0D1117?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MichelModesto)
 
-📍 São Paulo, Brazil — **open to relocation**
+São Paulo, Brazil — **open to relocation**
 
 </div>
 
@@ -26,17 +26,17 @@ Full Stack Developer with **2.5+ years** of professional experience building and
 
 I'm currently the **lead developer and technical owner** of a strategic business system — responsible for the full cycle, from requirements gathering through development, testing and deployment. I work directly with directors and managers, translating business needs into technical solutions, running technical meetings and proposing process improvements.
 
-🎯 Looking for an international opportunity as a **Full Stack / Backend Developer or Software Engineer**, with long-term career growth in **Europe or Australia**.
+Looking for an international opportunity as a **Full Stack / Backend Developer or Software Engineer**, with long-term career growth in **Europe or Australia**.
 
 ---
 
 ### What I do
 
-- 🏗️ Build and maintain full stack applications with **JavaScript** and **Node.js** in production
-- 🗄️ Design and maintain database solutions with **SQL, MySQL and SQL Server** — including tables with **millions of records**
-- ⚙️ Develop internal tools, automations, integrations and corporate workflows
-- ☁️ Migrated the production infrastructure from **Google Cloud to Hostinger**
-- 🤝 Own projects end to end and work directly with stakeholders
+- Build and maintain full stack applications with **JavaScript** and **Node.js** in production
+- Design and maintain database solutions with **SQL, MySQL and SQL Server** — including tables with **millions of records**
+- Develop internal tools, automations, integrations and corporate workflows
+- Migrated the production infrastructure from **Google Cloud to Hostinger**
+- Own projects end to end and work directly with stakeholders
 
 ---
 
@@ -94,14 +94,14 @@ Lead developer responsible for the maintenance, development and technical evolut
 
 ### Education
 
-🎓 **Technologist in Systems Analysis and Development**
+**Technologist in Systems Analysis and Development**
 Faculdade Impacta Tecnologia — São Paulo, Brazil · *Completed 2024*
 
 ---
 
 ### Languages
 
-🇧🇷 Portuguese — Native  ·  🇺🇸 English — Basic, actively improving  ·  🇪🇸 Spanish — Basic
+🇧🇷 Portuguese — Native · 🇺🇸 English — Basic, actively improving · 🇪🇸 Spanish — Basic
 
 ---
 

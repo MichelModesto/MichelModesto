@@ -14,7 +14,7 @@
 [![Email](https://img.shields.io/badge/-Email-8b008b?style=for-the-badge&logo=gmail&logoColor=white)](mailto:michel.mx10@gmail.com)
 [![GitHub](https://img.shields.io/badge/-GitHub-0D1117?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MichelModesto)
 
-📍 São Paulo, Brasil — **aberto a relocação**
+São Paulo, Brasil — **aberto a relocação**
 
 </div>
 
@@ -26,17 +26,17 @@ Desenvolvedor Full Stack com **mais de 2 anos e meio** de experiência profissio
 
 Atualmente sou o **principal desenvolvedor e responsável técnico** por um sistema empresarial estratégico — responsável pelo ciclo completo, do levantamento de requisitos ao desenvolvimento, testes e implantação. Trabalho diretamente com diretores e gerentes, traduzindo necessidades de negócio em soluções técnicas, conduzindo reuniões técnicas e propondo melhorias de processos.
 
-🎯 Busco uma oportunidade internacional como **Desenvolvedor Full Stack / Backend ou Engenheiro de Software**, com desenvolvimento de carreira de longo prazo na **Europa ou Austrália**.
+Busco uma oportunidade internacional como **Desenvolvedor Full Stack / Backend ou Engenheiro de Software**, com desenvolvimento de carreira de longo prazo na **Europa ou Austrália**.
 
 ---
 
 ### O que eu faço
 
-- 🏗️ Desenvolvo e mantenho aplicações full stack com **JavaScript** e **Node.js** em produção
-- 🗄️ Projeto e mantenho soluções de banco de dados com **SQL, MySQL e SQL Server** — incluindo bases com **milhões de registros**
-- ⚙️ Desenvolvo ferramentas internas, automações, integrações e fluxos de trabalho corporativos
-- ☁️ Realizei a migração da infraestrutura de produção do **Google Cloud para a Hostinger**
-- 🤝 Assumo projetos de ponta a ponta e trabalho diretamente com stakeholders
+- Desenvolvo e mantenho aplicações full stack com **JavaScript** e **Node.js** em produção
+- Projeto e mantenho soluções de banco de dados com **SQL, MySQL e SQL Server** — incluindo bases com **milhões de registros**
+- Desenvolvo ferramentas internas, automações, integrações e fluxos de trabalho corporativos
+- Realizei a migração da infraestrutura de produção do **Google Cloud para a Hostinger**
+- Assumo projetos de ponta a ponta e trabalho diretamente com stakeholders
 
 ---
 
@@ -94,14 +94,14 @@ Principal desenvolvedor responsável pela manutenção, desenvolvimento e evolu�
 
 ### Formação
 
-🎓 **Tecnólogo em Análise e Desenvolvimento de Sistemas**
+**Tecnólogo em Análise e Desenvolvimento de Sistemas**
 Faculdade Impacta Tecnologia — São Paulo, Brasil · *Concluído em 2024*
 
 ---
 
 ### Idiomas
 
-🇧🇷 Português — Nativo  ·  🇺🇸 Inglês — Básico, em desenvolvimento  ·  🇪🇸 Espanhol — Básico
+🇧🇷 Português — Nativo · 🇺🇸 Inglês — Básico, em desenvolvimento · 🇪🇸 Espanhol — Básico
 
 ---
 
