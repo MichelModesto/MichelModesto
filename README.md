@@ -8,7 +8,7 @@
 
 **Full Stack Developer | Software Engineer**
 
-[![Typing SVG](https://readme-typing-svg.demolab.com/?color=8b008b&size=26&center=true&vCenter=true&width=650&lines=Full+Stack+Developer;Software+Engineer;JavaScript+%7C+TypeScript+%7C+Node.js+%7C+SQL;Open+to+relocation+-+Europe+%26+Australia)](https://github.com/MichelModesto)
+[![Typing SVG](https://readme-typing-svg.demolab.com/?color=8b008b&size=26&center=true&vCenter=true&width=650&lines=Full+Stack+Developer;Software+Engineer;JavaScript+%7C+TypeScript+%7C+Node.js+%7C+SQL;Open+to+relocation+-+Europe%2C+US+%26+Australia)](https://github.com/MichelModesto)
 
 [![LinkedIn](https://img.shields.io/badge/-LinkedIn-0A66C2?style=for-the-badge&logoColor=white)](https://www.linkedin.com/in/michelmodesto)
 [![Email](https://img.shields.io/badge/-Email-8b008b?style=for-the-badge&logo=gmail&logoColor=white)](mailto:michel.mx10@gmail.com)
@@ -26,7 +26,7 @@ Full Stack Developer with **2.5+ years** of professional experience building and
 
 I'm currently the **lead developer and technical owner** of a strategic business system — responsible for the full cycle, from requirements gathering through development, testing and deployment. I work directly with directors and managers, translating business needs into technical solutions, running technical meetings and proposing process improvements.
 
-Looking for an international opportunity as a **Full Stack / Backend Developer or Software Engineer**, with long-term career growth in **Europe or Australia**.
+Looking for an international opportunity as a **Full Stack / Backend Developer or Software Engineer**, with long-term career growth in **Europe, the United States or Australia**.
 
 ---
 

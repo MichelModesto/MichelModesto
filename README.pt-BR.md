@@ -8,7 +8,7 @@
 
 **Desenvolvedor Full Stack | Engenheiro de Software**
 
-[![Typing SVG](https://readme-typing-svg.demolab.com/?color=8b008b&size=26&center=true&vCenter=true&width=650&lines=Desenvolvedor+Full+Stack;Engenheiro+de+Software;JavaScript+%7C+TypeScript+%7C+Node.js+%7C+SQL;Aberto+a+relocacao+-+Europa+%26+Australia)](https://github.com/MichelModesto)
+[![Typing SVG](https://readme-typing-svg.demolab.com/?color=8b008b&size=26&center=true&vCenter=true&width=650&lines=Desenvolvedor+Full+Stack;Engenheiro+de+Software;JavaScript+%7C+TypeScript+%7C+Node.js+%7C+SQL;Aberto+a+relocacao+-+Europa%2C+EUA+%26+Australia)](https://github.com/MichelModesto)
 
 [![LinkedIn](https://img.shields.io/badge/-LinkedIn-0A66C2?style=for-the-badge&logoColor=white)](https://www.linkedin.com/in/michelmodesto)
 [![Email](https://img.shields.io/badge/-Email-8b008b?style=for-the-badge&logo=gmail&logoColor=white)](mailto:michel.mx10@gmail.com)
@@ -26,7 +26,7 @@ Desenvolvedor Full Stack com **mais de 2 anos e meio** de experiência profissio
 
 Atualmente sou o **principal desenvolvedor e responsável técnico** por um sistema empresarial estratégico — responsável pelo ciclo completo, do levantamento de requisitos ao desenvolvimento, testes e implantação. Trabalho diretamente com diretores e gerentes, traduzindo necessidades de negócio em soluções técnicas, conduzindo reuniões técnicas e propondo melhorias de processos.
 
-Busco uma oportunidade internacional como **Desenvolvedor Full Stack / Backend ou Engenheiro de Software**, com desenvolvimento de carreira de longo prazo na **Europa ou Austrália**.
+Busco uma oportunidade internacional como **Desenvolvedor Full Stack / Backend ou Engenheiro de Software**, com desenvolvimento de carreira de longo prazo na **Europa, Estados Unidos ou Austrália**.
 
 ---
 
