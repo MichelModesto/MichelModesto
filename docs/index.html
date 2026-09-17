@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Finanças</title>
+<meta name="description" content="Painel financeiro pessoal">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanças">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<section id="lock" class="lock">
+  <form id="lock-form" class="lock-card" autocomplete="off">
+    <div class="lock-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2Zm-7-2a2 2 0 0 1 4 0v2h-4V6Zm2 11.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
+    </div>
+    <h1>Finanças</h1>
+    <p class="lock-sub">Os dados são descriptografados só neste aparelho.</p>
+    <label class="field">
+      <span>Senha</span>
+      <input id="pwd" type="password" inputmode="text" autocomplete="current-password" required>
+    </label>
+    <label class="check"><input id="remember" type="checkbox" checked> Lembrar neste aparelho</label>
+    <button id="unlock" class="btn" type="submit">Entrar</button>
+    <p id="lock-status" class="lock-status" role="status"></p>
+  </form>
+</section>
+
+<div id="app" class="app hidden">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-title" id="title">Finanças</span>
+      <span class="brand-sub" id="updated"></span>
+    </div>
+    <button id="logout" class="icon-btn" title="Sair" aria-label="Sair">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M10 17v-2h4v-6h-4V7l-5 5 5 5Zm-6 4h9a2 2 0 0 0 2-2v-3h-2v3H4V5h9v3h2V5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Zm16-9-4-4v3h-4v2h4v3l4-4Z"/></svg>
+    </button>
+  </header>
+  <nav id="months" class="months" aria-label="Meses"></nav>
+  <main id="view" class="view"></main>
+  <nav class="tabbar" id="tabbar" aria-label="Seções">
+    <button data-tab="resumo" class="active"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z"/></svg><span>Resumo</span></button>
+    <button data-tab="gastos"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 14H4v-6h16v6Zm0-10H4V6h16v2Z"/></svg><span>Gastos</span></button>
+    <button data-tab="investir"><svg viewBox="0 0 24 24"><path fill="currentColor" d="m16 6 2.3 2.3-4.9 4.9-4-4L2 16.6 3.4 18l6-6 4 4 6.3-6.3L22 12V6h-6Z"/></svg><span>Investir</span></button>
+    <button data-tab="imovel"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 3 2 12h3v8h6v-6h2v6h6v-8h3L12 3Z"/></svg><span>Imóvel</span></button>
+    <button data-tab="metas"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm0-13a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-4a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/></svg><span>Metas</span></button>
+  </nav>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
