@@ -28,12 +28,12 @@
 <main id="grid"></main>
 <footer>
   <span id="status">Carregando…</span>
-  <label>Moedas <input id="moedas" placeholder="USD,EUR,GBP,AUD" title="Códigos separados por vírgula, todos contra BRL"></label>
+  <label>Moedas <input id="moedas" placeholder="USD,EUR,GBP,CHF" title="Códigos separados por vírgula, todos contra BRL"></label>
 </footer>
 <script>
   const KEY = 'cotacao.moedas';
   const params = new URLSearchParams(location.search);
-  let moedas = (params.get('m') || localStorage.getItem(KEY) || 'USD,EUR,GBP,AUD')
+  let moedas = (params.get('m') || localStorage.getItem(KEY) || 'USD,EUR,GBP,CHF')
     .toUpperCase().replace(/[^A-Z,]/g, '').split(',').filter(Boolean);
   const inp = document.getElementById('moedas'), grid = document.getElementById('grid'), status = document.getElementById('status');
   inp.value = moedas.join(',');

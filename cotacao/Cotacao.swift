@@ -6,7 +6,7 @@ struct Cotacao: Decodable {
 
 @MainActor
 final class Modelo: ObservableObject {
-    @AppStorage("moedas") var moedas = "USD,EUR,GBP,AUD"
+    @AppStorage("moedas") var moedas = "USD,EUR,GBP,CHF"
     @Published var itens: [Cotacao] = []
     @Published var erro = false
     @Published var hora = "—"
@@ -65,7 +65,7 @@ struct CotacaoApp: App {
             Text(m.erro ? "Sem conexão — último valor \(m.hora)" : "Atualizado \(m.hora)")
             Button("Atualizar agora") { Task { await m.atualizar() } }
             Divider()
-            TextField("Moedas (ex.: USD,EUR,GBP,AUD)", text: $m.moedas)
+            TextField("Moedas (ex.: USD,EUR,GBP,CHF)", text: $m.moedas)
                 .onSubmit { Task { await m.atualizar() } }
             Divider()
             Button("Sair") { NSApplication.shared.terminate(nil) }
