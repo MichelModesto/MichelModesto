@@ -20,7 +20,8 @@ const tile = (label, value, sub = '', c = '') =>
 const qtdTxt = i => i.un === 'KG' ? `${num(i.qtd)} kg × ${brl(i.unit)}/kg` : `${num(i.qtd, 0)} × ${brl(i.unit)}`;
 const porMed = i => i.kg ? `${brl(i.unit / i.kg)}/${i.med}` : '';
 const embTxt = i => i.kg < 1 ? `${num(i.kg * 1000, 1)} ${i.med === 'L' ? 'ml' : 'g'}` : `${num(i.kg)} ${i.med}`;
-const lojaCurta = s => { const w = String(s || '').replace(/^(GRUPO|SUPERMERCADOS?|COMERCIAL|MERCADO)\s+/i, '').split(/\s+/)[0] || 'Mercado'; return w[0] + w.slice(1).toLowerCase(); };
+const APELIDOS = { SENDAS: 'Assaí', ATACADAO: 'Atacadão' };   // razão social -> nome da fachada
+const lojaCurta = s => { const w = String(s || '').replace(/^(GRUPO|SUPERMERCADOS?|COMERCIAL|MERCADO)\s+/i, '').split(/\s+/)[0] || 'Mercado'; return APELIDOS[w.toUpperCase()] || w[0] + w.slice(1).toLowerCase(); };
 
 const state = { dados: null, i: 0, tab: 'resumo', q: '', filtro: 'mudou' };
 const charts = [];
@@ -71,7 +72,12 @@ function init() {
 function preparar(d) {
   const sup = new Set(d.superfluos);
   const C = d.compras;
-  const hist = new Map();                       // ean -> [{i, unit, qtd, nome, un}]
+  const hist = new Map();                       // ean -> [{i, loja, unit, qtd, nome, un}]
+  // "casa" = mercado onde você mais compra; variação de preço só compara dentro do mesmo mercado
+  const freq = {};
+  C.forEach(c => { freq[c.loja] = (freq[c.loja] || 0) + 1; });
+  d.casa = C.map(c => c.loja).reduce((a, l) => freq[l] >= freq[a] ? l : a, C[0].loja);
+  d.multi = Object.keys(freq).length > 1;
   C.forEach((c, i) => {
     // mesmo produto em duas linhas da nota vira uma só
     const porEan = new Map();
@@ -81,31 +87,54 @@ function preparar(d) {
       if (j) { j.qtd += it.qtd; j.valor += it.valor; } else porEan.set(it.ean, { ...it });
     });
     c.linhas = [...porEan.values()];
-    c.linhas.forEach(it => (hist.get(it.ean) || hist.set(it.ean, []).get(it.ean)).push({ i, unit: it.unit, qtd: it.qtd, nome: it.nome, un: it.un, cat: it.cat, kg: it.kg, med: it.med }));
+    c.linhas.forEach(it => (hist.get(it.ean) || hist.set(it.ean, []).get(it.ean)).push({ i, loja: c.loja, unit: it.unit, qtd: it.qtd, nome: it.nome, un: it.un, cat: it.cat, kg: it.kg, med: it.med }));
     c.superfluo = soma(c.itens.filter(x => x.sup), x => x.valor);
     c.unidades = soma(c.itens, x => x.un === 'KG' ? 1 : x.qtd);
   });
   // preço na compra anterior em que o produto apareceu
   C.forEach((c, i) => c.linhas.forEach(it => {
-    const ant = hist.get(it.ean).filter(h => h.i < i).pop();
+    const ant = hist.get(it.ean).filter(h => h.i < i && h.loja === c.loja).pop();
     it.antes = ant ? ant.unit : null;
     it.var = ant ? it.unit / ant.unit - 1 : null;
   }));
-  // cesta: o que veio na compra anterior e se repetiu, na quantidade de antes, a preço de agora
+  // cesta: o que veio na compra anterior (mesmo mercado) e se repetiu, na quantidade de antes, a preço de agora
   C.forEach((c, i) => {
-    if (!i) return;
+    const prev = C.slice(0, i).filter(x => x.loja === c.loja).pop();
+    if (!prev) return;
     const agora = new Map(c.linhas.map(x => [x.ean, x.unit]));
-    const comuns = C[i - 1].linhas.filter(x => agora.has(x.ean));
+    const comuns = prev.linhas.filter(x => agora.has(x.ean));
     const antes = soma(comuns, x => x.qtd * x.unit), depois = soma(comuns, x => x.qtd * agora.get(x.ean));
     c.cesta = comuns.length ? { n: comuns.length, antes, depois, var: depois / antes - 1 } : null;
   });
   d.acumulado = C.reduce((a, c) => a * (1 + (c.cesta ? c.cesta.var : 0)), 1) - 1;
-  d.produtos = [...hist.entries()].map(([ean, h]) => ({
-    ean, h, nome: h[h.length - 1].nome, cat: h[0].cat, un: h[0].un, ult: h[h.length - 1],
-    var: h.length > 1 ? h[h.length - 1].unit / h[0].unit - 1 : null,
-    gasto: soma(C.flatMap(c => c.linhas.filter(x => x.ean === ean)), x => x.valor),
-  }));
+  d.produtos = [...hist.entries()].map(([ean, h]) => {
+    const hc = h.filter(x => x.loja === d.casa);
+    return {
+      ean, h, nome: h[h.length - 1].nome, cat: h[0].cat, un: h[0].un, ult: h[h.length - 1], casa: hc[hc.length - 1] || null,
+      var: hc.length > 1 ? hc[hc.length - 1].unit / hc[0].unit - 1 : null,
+      gasto: soma(C.flatMap(c => c.linhas.filter(x => x.ean === ean)), x => x.valor),
+    };
+  });
+  d.fora = precosFora(d);
   return d;
+}
+
+// preços fora da "casa": aba Cotação + notas de outros mercados; fica o mais recente de cada mercado
+function precosFora(d) {
+  const C = d.compras;
+  const doNotas = C.filter(c => c.loja !== d.casa).flatMap(c => c.linhas.map(x => ({ mercado: lojaCurta(c.loja), data: c.data, ean: x.ean, nome: x.nome, preco: x.unit })));
+  const todos = [...(d.cotacao || []), ...doNotas].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+  const porEan = new Map(d.produtos.map(p => [p.ean, p]));
+  const porNome = new Map(d.produtos.map(p => [p.nome.toUpperCase(), p]));
+  const ultimo = new Map(), soltos = [];
+  todos.forEach(x => {
+    const p = (x.ean && porEan.get(x.ean)) || porNome.get(x.nome.toUpperCase());
+    if (!p || !p.casa) { if (!p) soltos.push(x); return; }
+    ultimo.set(`${x.mercado}|${p.ean}`, { ...x, p });
+  });
+  const porProduto = new Map();
+  ultimo.forEach(x => (porProduto.get(x.p) || porProduto.set(x.p, []).get(x.p)).push(x));
+  return { porProduto, soltos };
 }
 
 function start() {
@@ -121,7 +150,7 @@ function start() {
 /* ---------- render ---------- */
 function renderChips() {
   $('#months').innerHTML = state.dados.compras.map((c, i) =>
-    `<button class="chip ${i === state.i ? 'active' : ''}" data-i="${i}">${curta(c.data)}</button>`).join('');
+    `<button class="chip ${i === state.i ? 'active' : ''}" data-i="${i}">${curta(c.data)}${state.dados.multi ? ` · ${esc(lojaCurta(c.loja))}` : ''}</button>`).join('');
   const act = $('#months .chip.active');
   if (act) act.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
@@ -130,8 +159,8 @@ function render(toTop = false) {
   charts.forEach(c => c.destroy()); charts.length = 0;
   const d = state.dados, c = d.compras[state.i];
   $$('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
-  $('#months').classList.toggle('hidden', state.tab === 'precos');
-  $('#view').innerHTML = { resumo: renderResumo, precos: renderPrecos, itens: renderItens }[state.tab](c, d);
+  $('#months').classList.toggle('hidden', state.tab === 'precos' || state.tab === 'lista');
+  $('#view').innerHTML = { resumo: renderResumo, precos: renderPrecos, itens: renderItens, lista: renderLista }[state.tab](c, d);
   if (state.tab === 'resumo') graficos(d);
   if (toTop) window.scrollTo({ top: 0 });
 }
@@ -152,7 +181,8 @@ function renderResumo(c, d) {
   const pesoSubida = soma(subiram, x => (x.unit - x.antes) * x.qtd);
   const tips = [];
   tips.push(`<b>${pct(c.superfluo / c.total, 0)}</b> desta compra (${brl(c.superfluo)}) foi em ${d.superfluos.join(', ').toLowerCase()}. Média de todas as compras: ${pct(mediaSup, 0)}.`);
-  if (c.cesta) tips.push(`Os <b>${c.cesta.n}</b> produtos que você repetiu da compra anterior custaram <b class="${cls(c.cesta.var)}">${spct(c.cesta.var)}</b> (${brl(c.cesta.antes)} → ${brl(c.cesta.depois)} na mesma quantidade).`);
+  if (d.teto && c.superfluo > d.teto) tips.push(`Passou do teto de supérfluos (${brl(d.teto)}) em <b class="bad">${brl(c.superfluo - d.teto)}</b>.`);
+  if (c.cesta) tips.push(`Os <b>${c.cesta.n}</b> produtos que você repetiu da compra anterior${d.multi ? ' no mesmo mercado' : ''} custaram <b class="${cls(c.cesta.var)}">${spct(c.cesta.var)}</b> (${brl(c.cesta.antes)} → ${brl(c.cesta.depois)} na mesma quantidade).`);
   if (subiram.length) tips.push(`Subiram de preço: ${subiram.slice(0, 4).map(x => `<b>${esc(x.nome)}</b> ${spct(x.var, 0)}`).join(', ')}${subiram.length > 4 ? ` e mais ${subiram.length - 4}` : ''}. Custo extra nesta compra: <b>${brl(pesoSubida)}</b>.`);
   if (cairam.length) tips.push(`Ficaram mais baratos: ${cairam.map(x => `${esc(x.nome)} ${spct(x.var, 0)}`).join(', ')}.`);
   return `
@@ -160,10 +190,10 @@ function renderResumo(c, d) {
     <div class="hero-label">Compra de ${fmtDate(c.data)}</div>
     <div class="hero-value">${brl(c.total)}</div>
     <div class="hero-sub">${c.itens.length} linhas na nota · ${esc(c.loja)}</div>
-    ${ant ? `<div class="hero-sub" style="margin-top:6px">Compra anterior <b>${brl(ant.total)}</b> · diferença <b class="${cls(c.total - ant.total)}">${c.total >= ant.total ? '+' : ''}${brl(c.total - ant.total)}</b></div>` : ''}
+    ${ant ? `<div class="hero-sub" style="margin-top:6px">Compra anterior${d.multi ? ` (${esc(lojaCurta(ant.loja))})` : ''} <b>${brl(ant.total)}</b> · diferença <b class="${cls(c.total - ant.total)}">${c.total >= ant.total ? '+' : ''}${brl(c.total - ant.total)}</b></div>` : ''}
   </section>
   <section class="kpis">
-    ${tile('Supérfluos', brl(c.superfluo), `${pct(c.superfluo / c.total, 0)} da compra`, c.superfluo / c.total > mediaSup + 0.02 ? 'neg' : '')}
+    ${tile('Supérfluos', brl(c.superfluo), d.teto ? `teto ${brl(d.teto)} · ${c.superfluo > d.teto ? `passou ${brl(c.superfluo - d.teto)}` : 'dentro'}` : `${pct(c.superfluo / c.total, 0)} da compra`, (d.teto ? c.superfluo > d.teto : c.superfluo / c.total > mediaSup + 0.02) ? 'neg' : 'pos')}
     ${tile('Essencial', brl(c.total - c.superfluo), `${pct(1 - c.superfluo / c.total, 0)} da compra`)}
     ${tile('Preço da cesta', c.cesta ? spct(c.cesta.var) : '—', c.cesta ? `${c.cesta.n} itens repetidos` : 'primeira compra', c.cesta ? (c.cesta.var > 0 ? 'neg' : 'pos') : '')}
     ${tile('Média por compra', brl(media), `${d.compras.length} compras`)}
@@ -213,7 +243,7 @@ function precosVariacao(d, bate, q) {
   <section class="card">
     <div class="hero-label">Sua cesta ficou mais cara em</div>
     <div class="hero-value ${cls(d.acumulado) === 'bad' ? 'neg' : 'pos'}">${spct(d.acumulado)}</div>
-    <div class="hero-sub">de ${fmtDate(C[0].data)} a ${fmtDate(C[C.length - 1].data)}, somando ${C.slice(1).map(x => x.cesta ? `<b>${spct(x.cesta.var)}</b>` : '—').join(' e ')} entre compras</div>
+    <div class="hero-sub">de ${fmtDate(C[0].data)} a ${fmtDate(C[C.length - 1].data)}, somando ${C.filter(x => x.cesta).map(x => x.cesta ? `<b>${spct(x.cesta.var)}</b>` : '—').join(' e ')} entre compras</div>
     <p class="legend-note">Mesmo produto (código de barras) na mesma quantidade, compra contra a anterior. Não depende do que você escolheu levar a mais ou a menos.</p>
   </section>
   <section class="kpis">
@@ -228,7 +258,7 @@ function precosVariacao(d, bate, q) {
       <div class="row">
         <div class="row-main">
           <span class="row-title">${esc(p.nome)}</span>
-          <span class="row-sub trail">${p.h.map(h => `${curta(C[h.i].data)} ${brl(h.unit)}${p.un === 'KG' ? '/kg' : ''}`).join(' → ')}</span>
+          <span class="row-sub trail">${p.h.map(h => `${curta(C[h.i].data)}${d.multi ? ` (${esc(lojaCurta(h.loja))})` : ''} ${brl(h.unit)}${p.un === 'KG' ? '/kg' : ''}`).join(' → ')}</span>
         </div>
         <div class="row-side">${p.var != null ? `<span class="badge ${cls(p.var)}">${spct(p.var, 0)}</span>` : '<span class="badge">1 compra</span>'}</div>
       </div>`).join('')}</div>` : '<p class="empty">Nada encontrado.</p>'}
@@ -260,28 +290,22 @@ function precosKg(d, bate) {
 }
 
 function precosMercados(d, bate) {
-  const cot = d.cotacao || [];
-  if (!cot.length) return `
+  const { porProduto, soltos } = d.fora;
+  if (!porProduto.size && !soltos.length) return `
   <section class="card">
     <h2>Outros mercados</h2>
-    <p class="tip">Ainda não tem cotação. Na planilha <b>mercado.xlsx</b>, aba <b>Cotação</b>: escreva o nome do mercado na linha 2, a data na linha 3 e o preço de cada produto embaixo (pesáveis por kg). Já estão lá os ${d.produtos.filter(p => p.var != null).length} produtos que você compra sempre.</p>
-    <p class="tip">Depois rode o <b>publicar.sh</b>. Aqui aparece, produto a produto, quanto você pagou no seu mercado contra o preço dos outros, e quanto a compra toda sairia em cada um.</p>
+    <p class="tip">Ainda não tem preço de outro mercado. Dois jeitos: colar na <b>mercado.xlsx</b> a nota de uma compra feita em outro mercado (aba nova, como as outras), ou preencher a aba <b>Cotação</b> (nome do mercado na linha 2, data na linha 3, preços embaixo; pesáveis por kg). Na Cotação já estão os produtos que você compra sempre.</p>
+    <p class="tip">Depois rode o <b>publicar.sh</b>. Aqui aparece, produto a produto, quanto você pagou no seu mercado contra os outros, e quanto a compra toda sairia em cada um.</p>
   </section>`;
-  const C = d.compras;
-  const porEan = new Map(d.produtos.map(p => [p.ean, p]));
-  const porNome = new Map(d.produtos.map(p => [p.nome.toUpperCase(), p]));
-  const casa = lojaCurta(C[C.length - 1].loja);
-  const linhas = new Map(), soltos = [], mercados = new Map();
-  cot.forEach(x => {
-    const p = (x.ean && porEan.get(x.ean)) || porNome.get(x.nome.toUpperCase());
-    if (!p) { soltos.push(x); return; }
-    (linhas.get(p) || linhas.set(p, []).get(p)).push(x);
+  const casa = lojaCurta(d.casa);
+  const mercados = new Map();
+  porProduto.forEach((xs, p) => xs.forEach(x => {
     const m = mercados.get(x.mercado) || mercados.set(x.mercado, { n: 0, aqui: 0, la: 0, datas: new Set() }).get(x.mercado);
-    const q = p.ult.qtd;                          // pesa pelo quanto você costuma levar
-    m.n++; m.aqui += p.ult.unit * q; m.la += x.preco * q; if (x.data) m.datas.add(x.data);
-  });
-  const lista = [...linhas.entries()].filter(([p]) => bate(p.nome, p.cat))
-    .map(([p, xs]) => ({ p, xs, melhor: Math.min(...xs.map(x => x.preco)) - p.ult.unit }))
+    const q = p.casa.qtd;                         // pesa pelo quanto você costuma levar
+    m.n++; m.aqui += p.casa.unit * q; m.la += x.preco * q; if (x.data) m.datas.add(x.data);
+  }));
+  const lista = [...porProduto.entries()].filter(([p]) => bate(p.nome, p.cat))
+    .map(([p, xs]) => ({ p, xs, melhor: Math.min(...xs.map(x => x.preco)) - p.casa.unit }))
     .sort((a, b) => a.melhor - b.melhor);
   return `
   <section class="kpis">${[...mercados.entries()].map(([nome, m]) => {
@@ -289,22 +313,66 @@ function precosMercados(d, bate) {
     return tile(esc(nome), spct(v), `${m.n} itens · ${v < 0 ? 'economia' : 'a mais'} de ${brl(Math.abs(m.aqui - m.la))} vs ${esc(casa)}${m.datas.size ? ` · ${[...m.datas].sort().map(curta).join(', ')}` : ''}`, v < -0.0005 ? 'pos' : v > 0.0005 ? 'neg' : '');
   }).join('')}</section>
   <section class="card">
-    <h2>Produto a produto <small>base: último preço pago no ${esc(casa)}</small></h2>
+    <h2>Produto a produto <small>base: último preço no ${esc(casa)}</small></h2>
     ${busca('Buscar produto ou categoria')}
     ${lista.length ? `<div class="list">${lista.map(({ p, xs, melhor }) => `
       <div class="row">
         <div class="row-main">
           <span class="row-title">${esc(p.nome)}</span>
-          <span class="row-sub"><span>${esc(casa)} ${brl(p.ult.unit)}${p.un === 'KG' ? '/kg' : ''}</span>${xs.map(x => {
-            const v = x.preco / p.ult.unit - 1;
+          <span class="row-sub"><span>${esc(casa)} ${brl(p.casa.unit)}${p.un === 'KG' ? '/kg' : ''}</span>${xs.map(x => {
+            const v = x.preco / p.casa.unit - 1;
             return `<span class="badge ${cls(v)}">${esc(x.mercado)} ${brl(x.preco)} ${spct(v, 0)}</span>`;
           }).join('')}</span>
         </div>
         <div class="row-side"><span class="row-val ${melhor < -0.005 ? 'pos' : ''}">${melhor < -0.005 ? `−${brl(-melhor)}` : '—'}</span><span class="row-val small">${melhor < -0.005 ? 'mais barato fora' : `${esc(casa)} ganha`}</span></div>
-      </div>`).join('')}</div>` : '<p class="empty">Nada encontrado.</p>'}
+      </div>`).join('')}</div>` : '<p class="empty">Nenhum produto em comum ainda.</p>'}
     <p class="legend-note">Percentual de cada mercado = a compra desses itens, nas quantidades que você costuma levar, lá contra aqui.</p>
-    ${soltos.length ? `<p class="legend-note">Não achei nas notas (confira código ou nome): ${soltos.map(x => esc(x.nome)).join(', ')}.</p>` : ''}
+    ${soltos.length ? `<p class="legend-note">Da cotação, não achei nas notas (confira código ou nome): ${soltos.map(x => esc(x.nome)).join(', ')}.</p>` : ''}
   </section>`;
+}
+
+/* --- Lista (o que você compra sempre) --- */
+function renderLista(c, d) {
+  const C = d.compras, n = C.length;
+  const dias = n > 1 ? (new Date(C[n - 1].data) - new Date(C[0].data)) / 864e5 / (n - 1) : 30;
+  const ps = d.produtos.filter(p => p.h.length >= 2).map(p => {
+    const tot = soma(p.h, h => h.qtd);
+    const fora = (d.fora.porProduto.get(p) || []).filter(x => p.casa && x.preco < p.casa.unit - 0.005).sort((a, b) => a.preco - b.preco)[0];
+    return { p, porCompra: tot / p.h.length, porMes: tot / (n * dias) * 30, medio: p.gasto / n, fora };
+  });
+  const sempre = ps.filter(x => x.p.h.length === n).sort((a, b) => b.medio - a.medio);
+  const quase = ps.filter(x => x.p.h.length < n).sort((a, b) => b.medio - a.medio);
+  const media = soma(C, x => x.total) / n;
+  const qtd = (x, v) => x.p.un === 'KG' ? `${num(v, 1)} kg` : `${num(v, 1)} un`;
+  const row = x => `
+    <div class="row">
+      <div class="row-main">
+        <span class="row-title">${esc(x.p.nome)}</span>
+        <span class="row-sub"><span>~${qtd(x, x.porCompra)} por compra · ~${qtd(x, x.porMes)}/mês</span>${x.fora ? `<span class="badge good">${esc(x.fora.mercado)} ${spct(x.fora.preco / x.p.casa.unit - 1, 0)}</span>` : ''}</span>
+      </div>
+      <div class="row-side"><span class="row-val">${brl(x.medio)}</span><span class="row-val small">por compra</span></div>
+    </div>`;
+  const teto = d.teto;
+  return `
+  <section class="card">
+    <div class="hero-label">Lista básica: o que vai em toda compra</div>
+    <div class="hero-value">${brl(soma(sempre, x => x.medio))}</div>
+    <div class="hero-sub"><b>${sempre.length}</b> produtos · ${pct(soma(sempre, x => x.medio) / media, 0)} da compra média de ${brl(media)}</div>
+    <p class="legend-note">Isso é o piso: dá para prever e comprar em quantidade onde for mais barato. Quantidade por mês = tudo que você levou ÷ intervalo médio entre compras (${num(dias, 0)} dias).</p>
+  </section>
+  <section class="card">
+    <h2>Teto de supérfluos <small>${teto ? `${brl(teto)} por compra` : 'sem teto'}</small></h2>
+    ${teto ? `<div class="bars">${C.map(x => `
+      <div class="bar-row">
+        <span class="bar-name">${fmtDate(x.data)}${d.multi ? ` · ${esc(lojaCurta(x.loja))}` : ''}</span>
+        <span class="bar-val ${x.superfluo > teto ? 'neg' : 'pos'}">${brl(x.superfluo)}<span class="bar-pct">${x.superfluo > teto ? `+${brl(x.superfluo - teto)}` : 'dentro'}</span></span>
+        <div class="bar-track"><div class="bar-fill sup" style="width:${Math.min(100, x.superfluo / Math.max(teto, ...C.map(y => y.superfluo)) * 100)}%"></div><i class="bar-tick" style="left:${teto / Math.max(teto, ...C.map(y => y.superfluo)) * 100}%"></i></div>
+      </div>`).join('')}</div>
+    <p class="legend-note">Barra = supérfluos da compra · traço = teto. Muda o valor na aba <b>Config</b> da planilha.</p>`
+    : '<p class="empty">Defina o teto na aba Config da planilha.</p>'}
+  </section>
+  <section class="card"><h2>Em todas as compras <small>${sempre.length}</small></h2><div class="list">${sempre.map(row).join('') || '<p class="empty">Precisa de 2 compras ou mais.</p>'}</div></section>
+  ${quase.length ? `<section class="card"><h2>Em quase todas <small>${quase.length} · 2+ compras</small></h2><div class="list">${quase.map(row).join('')}</div></section>` : ''}`;
 }
 
 /* --- Itens --- */
