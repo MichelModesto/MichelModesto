@@ -18,6 +18,9 @@ const soma = (arr, f) => arr.reduce((a, x) => a + f(x), 0);
 const tile = (label, value, sub = '', c = '') =>
   `<div class="tile"><div class="tile-label">${label}</div><div class="tile-value ${c}">${value}</div>${sub ? `<div class="tile-sub">${sub}</div>` : ''}</div>`;
 const qtdTxt = i => i.un === 'KG' ? `${num(i.qtd)} kg × ${brl(i.unit)}/kg` : `${num(i.qtd, 0)} × ${brl(i.unit)}`;
+const porMed = i => i.kg ? `${brl(i.unit / i.kg)}/${i.med}` : '';
+const embTxt = i => i.kg < 1 ? `${num(i.kg * 1000, 1)} ${i.med === 'L' ? 'ml' : 'g'}` : `${num(i.kg)} ${i.med}`;
+const lojaCurta = s => { const w = String(s || '').replace(/^(GRUPO|SUPERMERCADOS?|COMERCIAL|MERCADO)\s+/i, '').split(/\s+/)[0] || 'Mercado'; return w[0] + w.slice(1).toLowerCase(); };
 
 const state = { dados: null, i: 0, tab: 'resumo', q: '', filtro: 'mudou' };
 const charts = [];
@@ -78,7 +81,7 @@ function preparar(d) {
       if (j) { j.qtd += it.qtd; j.valor += it.valor; } else porEan.set(it.ean, { ...it });
     });
     c.linhas = [...porEan.values()];
-    c.linhas.forEach(it => (hist.get(it.ean) || hist.set(it.ean, []).get(it.ean)).push({ i, unit: it.unit, qtd: it.qtd, nome: it.nome, un: it.un, cat: it.cat }));
+    c.linhas.forEach(it => (hist.get(it.ean) || hist.set(it.ean, []).get(it.ean)).push({ i, unit: it.unit, qtd: it.qtd, nome: it.nome, un: it.un, cat: it.cat, kg: it.kg, med: it.med }));
     c.superfluo = soma(c.itens.filter(x => x.sup), x => x.valor);
     c.unidades = soma(c.itens, x => x.un === 'KG' ? 1 : x.qtd);
   });
@@ -98,7 +101,7 @@ function preparar(d) {
   });
   d.acumulado = C.reduce((a, c) => a * (1 + (c.cesta ? c.cesta.var : 0)), 1) - 1;
   d.produtos = [...hist.entries()].map(([ean, h]) => ({
-    ean, h, nome: h[h.length - 1].nome, cat: h[0].cat, un: h[0].un,
+    ean, h, nome: h[h.length - 1].nome, cat: h[0].cat, un: h[0].un, ult: h[h.length - 1],
     var: h.length > 1 ? h[h.length - 1].unit / h[0].unit - 1 : null,
     gasto: soma(C.flatMap(c => c.linhas.filter(x => x.ean === ean)), x => x.valor),
   }));
@@ -190,16 +193,22 @@ function renderResumo(c, d) {
 }
 
 /* --- Preços --- */
+const busca = ph => `<input class="search" type="search" id="busca" placeholder="${ph}" value="${esc(state.q)}" autocomplete="off">`;
+
 function renderPrecos(c, d) {
   const q = state.q.trim().toUpperCase();
-  let ps = d.produtos;
-  if (q) ps = ps.filter(p => p.nome.toUpperCase().includes(q) || p.cat.toUpperCase().includes(q));
-  else if (state.filtro === 'mudou') ps = ps.filter(p => p.var != null && Math.abs(p.var) > 0.0005);
-  else ps = ps.filter(p => p.var != null);
-  ps = [...ps].sort((a, b) => (b.var ?? -9) - (a.var ?? -9) || a.nome.localeCompare(b.nome));
+  const bate = (nome, cat = '') => !q || nome.toUpperCase().includes(q) || cat.toUpperCase().includes(q);
+  const segs = [['mudou', 'Variação'], ['kg', 'Por kg / L'], ['mercados', 'Outros mercados']];
+  const view = { mudou: precosVariacao, kg: precosKg, mercados: precosMercados }[state.filtro] || precosVariacao;
+  return `<div class="seg">${segs.map(([k, l]) => `<button data-filtro="${k}" class="${state.filtro === k ? 'active' : ''}">${l}</button>`).join('')}</div>${view(d, bate, q)}`;
+}
+
+function precosVariacao(d, bate, q) {
+  const C = d.compras;
+  const ps = d.produtos.filter(p => q ? bate(p.nome, p.cat) : p.var != null && Math.abs(p.var) > 0.0005)
+    .sort((a, b) => (b.var ?? -9) - (a.var ?? -9) || a.nome.localeCompare(b.nome));
   const rep = d.produtos.filter(p => p.var != null);
   const sub = rep.filter(p => p.var > 0.0005).length, cai = rep.filter(p => p.var < -0.0005).length;
-  const C = d.compras;
   return `
   <section class="card">
     <div class="hero-label">Sua cesta ficou mais cara em</div>
@@ -213,8 +222,8 @@ function renderPrecos(c, d) {
     ${tile('Caíram', `${cai}`, 'primeira × última compra', cai ? 'pos' : '')}
   </section>
   <section class="card">
-    <input class="search" type="search" id="busca" placeholder="Buscar produto ou categoria (todas as compras)" value="${esc(state.q)}" autocomplete="off">
-    ${q ? '' : `<div class="seg" style="margin:6px 0 4px">${[['mudou', 'Mudaram de preço'], ['todos', 'Todos os repetidos']].map(([k, l]) => `<button data-filtro="${k}" class="${state.filtro === k ? 'active' : ''}">${l}</button>`).join('')}</div>`}
+    <h2>${q ? 'Resultado da busca' : 'Mudaram de preço'} <small>${ps.length}</small></h2>
+    ${busca('Buscar produto ou categoria (todas as compras)')}
     ${ps.length ? `<div class="list">${ps.map(p => `
       <div class="row">
         <div class="row-main">
@@ -223,6 +232,78 @@ function renderPrecos(c, d) {
         </div>
         <div class="row-side">${p.var != null ? `<span class="badge ${cls(p.var)}">${spct(p.var, 0)}</span>` : '<span class="badge">1 compra</span>'}</div>
       </div>`).join('')}</div>` : '<p class="empty">Nada encontrado.</p>'}
+  </section>`;
+}
+
+function precosKg(d, bate) {
+  const com = d.produtos.filter(p => p.ult.kg), sem = d.produtos.length - com.length;
+  const grupos = {};
+  com.filter(p => bate(p.nome, p.cat)).forEach(p => (grupos[p.cat] ||= []).push(p));
+  const ordem = Object.keys(grupos).sort((a, b) => a.localeCompare(b));
+  return `
+  <section class="card">
+    <h2>Preço por kg / litro <small>último preço pago</small></h2>
+    <p class="legend-note" style="margin-top:0">Pacote maior nem sempre sai mais barato. Busque o produto (ex.: <b>AMEND</b>, <b>IOG</b>, <b>BOMBOM</b>) para comparar embalagens e marcas lado a lado.
+    ${sem ? ` ${sem} produtos ainda sem peso: preencha a aba <b>Pesos</b> da planilha.` : ''}</p>
+    ${busca('Buscar produto ou categoria')}
+    ${ordem.length ? ordem.map(k => `
+      <div class="group-title">${esc(k)}</div>
+      <div class="list">${grupos[k].sort((a, b) => a.ult.unit / a.ult.kg - b.ult.unit / b.ult.kg).map(p => `
+        <div class="row">
+          <div class="row-main">
+            <span class="row-title">${esc(p.nome)}</span>
+            <span class="row-sub">${p.un === 'KG' ? '<span>pesável</span>' : `<span>${embTxt(p.ult)} por ${brl(p.ult.unit)}</span>`}<span>${curta(d.compras[p.ult.i].data)}</span></span>
+          </div>
+          <div class="row-side"><span class="row-val">${porMed(p.ult)}</span></div>
+        </div>`).join('')}</div>`).join('') : '<p class="empty">Nada encontrado.</p>'}
+  </section>`;
+}
+
+function precosMercados(d, bate) {
+  const cot = d.cotacao || [];
+  if (!cot.length) return `
+  <section class="card">
+    <h2>Outros mercados</h2>
+    <p class="tip">Ainda não tem cotação. Na planilha <b>mercado.xlsx</b>, aba <b>Cotação</b>: escreva o nome do mercado na linha 2, a data na linha 3 e o preço de cada produto embaixo (pesáveis por kg). Já estão lá os ${d.produtos.filter(p => p.var != null).length} produtos que você compra sempre.</p>
+    <p class="tip">Depois rode o <b>publicar.sh</b>. Aqui aparece, produto a produto, quanto você pagou no seu mercado contra o preço dos outros, e quanto a compra toda sairia em cada um.</p>
+  </section>`;
+  const C = d.compras;
+  const porEan = new Map(d.produtos.map(p => [p.ean, p]));
+  const porNome = new Map(d.produtos.map(p => [p.nome.toUpperCase(), p]));
+  const casa = lojaCurta(C[C.length - 1].loja);
+  const linhas = new Map(), soltos = [], mercados = new Map();
+  cot.forEach(x => {
+    const p = (x.ean && porEan.get(x.ean)) || porNome.get(x.nome.toUpperCase());
+    if (!p) { soltos.push(x); return; }
+    (linhas.get(p) || linhas.set(p, []).get(p)).push(x);
+    const m = mercados.get(x.mercado) || mercados.set(x.mercado, { n: 0, aqui: 0, la: 0, datas: new Set() }).get(x.mercado);
+    const q = p.ult.qtd;                          // pesa pelo quanto você costuma levar
+    m.n++; m.aqui += p.ult.unit * q; m.la += x.preco * q; if (x.data) m.datas.add(x.data);
+  });
+  const lista = [...linhas.entries()].filter(([p]) => bate(p.nome, p.cat))
+    .map(([p, xs]) => ({ p, xs, melhor: Math.min(...xs.map(x => x.preco)) - p.ult.unit }))
+    .sort((a, b) => a.melhor - b.melhor);
+  return `
+  <section class="kpis">${[...mercados.entries()].map(([nome, m]) => {
+    const v = m.la / m.aqui - 1;
+    return tile(esc(nome), spct(v), `${m.n} itens · ${v < 0 ? 'economia' : 'a mais'} de ${brl(Math.abs(m.aqui - m.la))} vs ${esc(casa)}${m.datas.size ? ` · ${[...m.datas].sort().map(curta).join(', ')}` : ''}`, v < -0.0005 ? 'pos' : v > 0.0005 ? 'neg' : '');
+  }).join('')}</section>
+  <section class="card">
+    <h2>Produto a produto <small>base: último preço pago no ${esc(casa)}</small></h2>
+    ${busca('Buscar produto ou categoria')}
+    ${lista.length ? `<div class="list">${lista.map(({ p, xs, melhor }) => `
+      <div class="row">
+        <div class="row-main">
+          <span class="row-title">${esc(p.nome)}</span>
+          <span class="row-sub"><span>${esc(casa)} ${brl(p.ult.unit)}${p.un === 'KG' ? '/kg' : ''}</span>${xs.map(x => {
+            const v = x.preco / p.ult.unit - 1;
+            return `<span class="badge ${cls(v)}">${esc(x.mercado)} ${brl(x.preco)} ${spct(v, 0)}</span>`;
+          }).join('')}</span>
+        </div>
+        <div class="row-side"><span class="row-val ${melhor < -0.005 ? 'pos' : ''}">${melhor < -0.005 ? `−${brl(-melhor)}` : '—'}</span><span class="row-val small">${melhor < -0.005 ? 'mais barato fora' : `${esc(casa)} ganha`}</span></div>
+      </div>`).join('')}</div>` : '<p class="empty">Nada encontrado.</p>'}
+    <p class="legend-note">Percentual de cada mercado = a compra desses itens, nas quantidades que você costuma levar, lá contra aqui.</p>
+    ${soltos.length ? `<p class="legend-note">Não achei nas notas (confira código ou nome): ${soltos.map(x => esc(x.nome)).join(', ')}.</p>` : ''}
   </section>`;
 }
 
@@ -242,7 +323,7 @@ function renderItens(c, d) {
         <div class="row">
           <div class="row-main">
             <span class="row-title">${esc(x.nome)}</span>
-            <span class="row-sub"><span>${qtdTxt(x)}</span>${x.var != null && Math.abs(x.var) > 0.0005 ? `<span class="badge ${cls(x.var)}">${spct(x.var, 0)} (era ${brl(x.antes)})</span>` : x.antes == null && state.i ? '<span class="badge">novo</span>' : ''}</span>
+            <span class="row-sub"><span>${qtdTxt(x)}</span>${x.kg && x.un !== 'KG' ? `<span>${porMed(x)}</span>` : ''}${x.var != null && Math.abs(x.var) > 0.0005 ? `<span class="badge ${cls(x.var)}">${spct(x.var, 0)} (era ${brl(x.antes)})</span>` : x.antes == null && state.i ? '<span class="badge">novo</span>' : ''}</span>
           </div>
           <div class="row-side"><span class="row-val">${brl(x.valor)}</span></div>
         </div>`).join('')}</div>`).join('') : '<p class="empty">Nada encontrado.</p>'}
