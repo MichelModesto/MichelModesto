@@ -1,0 +1,302 @@
+'use strict';
+
+/* ---------- utilitários (mesmos do painel de finanças) ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const brl = v => fmtBRL.format(Number(v) || 0);
+const pct = (v, d = 1) => (Number(v || 0) * 100).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }) + '%';
+const spct = (v, d = 1) => (v > 0.0005 ? '+' : '') + pct(v, d);
+const num = (v, d = 3) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: d });
+const fmtDate = iso => iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '';
+const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const curta = iso => `${+iso.slice(8, 10)} ${MES[+iso.slice(5, 7) - 1]}`;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const cls = v => v > 0.0005 ? 'bad' : v < -0.0005 ? 'good' : '';   // preço subir é ruim
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const soma = (arr, f) => arr.reduce((a, x) => a + f(x), 0);
+const tile = (label, value, sub = '', c = '') =>
+  `<div class="tile"><div class="tile-label">${label}</div><div class="tile-value ${c}">${value}</div>${sub ? `<div class="tile-sub">${sub}</div>` : ''}</div>`;
+const qtdTxt = i => i.un === 'KG' ? `${num(i.qtd)} kg × ${brl(i.unit)}/kg` : `${num(i.qtd, 0)} × ${brl(i.unit)}`;
+
+const state = { dados: null, i: 0, tab: 'resumo', q: '', filtro: 'mudou' };
+const charts = [];
+
+/* ---------- criptografia (WebCrypto) ---------- */
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function decrypt(pkg, pwd) {
+  const enc = new TextEncoder();
+  const km = await crypto.subtle.importKey('raw', enc.encode(pwd), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: b64(pkg.salt), iterations: pkg.iter, hash: 'SHA-256' },
+    km, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(pkg.iv) }, key, b64(pkg.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+// mesma chave do painel de finanças: entrou num, entrou no outro
+async function tryUnlock(pwd, remember) {
+  const st = $('#lock-status'), btn = $('#unlock');
+  st.textContent = 'Abrindo…'; st.classList.remove('err'); btn.disabled = true;
+  try {
+    const res = await fetch('dados.enc?v=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('fetch');
+    state.dados = preparar(await decrypt(await res.json(), pwd));
+    try { remember ? localStorage.setItem('fin_pwd', pwd) : localStorage.removeItem('fin_pwd'); } catch (e) { /* bloqueado */ }
+    st.textContent = '';
+    start();
+  } catch (err) {
+    st.textContent = err.message === 'fetch' ? 'Não encontrei o arquivo de dados.' : 'Senha incorreta.';
+    st.classList.add('err');
+    try { localStorage.removeItem('fin_pwd'); } catch (e) { /* bloqueado */ }
+    $('#pwd').focus();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function init() {
+  $('#lock-form').addEventListener('submit', e => { e.preventDefault(); tryUnlock($('#pwd').value, $('#remember').checked); });
+  $('#logout').addEventListener('click', () => { try { localStorage.removeItem('fin_pwd'); } catch (e) { /* */ } location.reload(); });
+  let saved = null;
+  try { saved = localStorage.getItem('fin_pwd'); } catch (e) { /* armazenamento bloqueado */ }
+  if (saved) tryUnlock(saved, true); else $('#pwd').focus();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => state.dados && render());
+}
+
+/* ---------- dados derivados ---------- */
+function preparar(d) {
+  const sup = new Set(d.superfluos);
+  const C = d.compras;
+  const hist = new Map();                       // ean -> [{i, unit, qtd, nome, un}]
+  C.forEach((c, i) => {
+    // mesmo produto em duas linhas da nota vira uma só
+    const porEan = new Map();
+    c.itens.forEach(it => {
+      it.sup = sup.has(it.cat);
+      const j = porEan.get(it.ean);
+      if (j) { j.qtd += it.qtd; j.valor += it.valor; } else porEan.set(it.ean, { ...it });
+    });
+    c.linhas = [...porEan.values()];
+    c.linhas.forEach(it => (hist.get(it.ean) || hist.set(it.ean, []).get(it.ean)).push({ i, unit: it.unit, qtd: it.qtd, nome: it.nome, un: it.un, cat: it.cat }));
+    c.superfluo = soma(c.itens.filter(x => x.sup), x => x.valor);
+    c.unidades = soma(c.itens, x => x.un === 'KG' ? 1 : x.qtd);
+  });
+  // preço na compra anterior em que o produto apareceu
+  C.forEach((c, i) => c.linhas.forEach(it => {
+    const ant = hist.get(it.ean).filter(h => h.i < i).pop();
+    it.antes = ant ? ant.unit : null;
+    it.var = ant ? it.unit / ant.unit - 1 : null;
+  }));
+  // cesta: o que veio na compra anterior e se repetiu, na quantidade de antes, a preço de agora
+  C.forEach((c, i) => {
+    if (!i) return;
+    const agora = new Map(c.linhas.map(x => [x.ean, x.unit]));
+    const comuns = C[i - 1].linhas.filter(x => agora.has(x.ean));
+    const antes = soma(comuns, x => x.qtd * x.unit), depois = soma(comuns, x => x.qtd * agora.get(x.ean));
+    c.cesta = comuns.length ? { n: comuns.length, antes, depois, var: depois / antes - 1 } : null;
+  });
+  d.acumulado = C.reduce((a, c) => a * (1 + (c.cesta ? c.cesta.var : 0)), 1) - 1;
+  d.produtos = [...hist.entries()].map(([ean, h]) => ({
+    ean, h, nome: h[h.length - 1].nome, cat: h[0].cat, un: h[0].un,
+    var: h.length > 1 ? h[h.length - 1].unit / h[0].unit - 1 : null,
+    gasto: soma(C.flatMap(c => c.linhas.filter(x => x.ean === ean)), x => x.valor),
+  }));
+  return d;
+}
+
+function start() {
+  const d = state.dados;
+  state.i = d.compras.length - 1;
+  $('#updated').textContent = `${d.compras.length} compras · planilha de ${fmtDate(d.gerado_em.slice(0, 10))}`;
+  $('#lock').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  renderChips();
+  render(true);
+}
+
+/* ---------- render ---------- */
+function renderChips() {
+  $('#months').innerHTML = state.dados.compras.map((c, i) =>
+    `<button class="chip ${i === state.i ? 'active' : ''}" data-i="${i}">${curta(c.data)}</button>`).join('');
+  const act = $('#months .chip.active');
+  if (act) act.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+
+function render(toTop = false) {
+  charts.forEach(c => c.destroy()); charts.length = 0;
+  const d = state.dados, c = d.compras[state.i];
+  $$('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
+  $('#months').classList.toggle('hidden', state.tab === 'precos');
+  $('#view').innerHTML = { resumo: renderResumo, precos: renderPrecos, itens: renderItens }[state.tab](c, d);
+  if (state.tab === 'resumo') graficos(d);
+  if (toTop) window.scrollTo({ top: 0 });
+}
+
+/* --- Resumo --- */
+function renderResumo(c, d) {
+  const ant = d.compras[state.i - 1];
+  const media = soma(d.compras, x => x.total) / d.compras.length;
+  const mediaSup = soma(d.compras, x => x.superfluo) / soma(d.compras, x => x.total);
+  const cats = {};
+  c.itens.forEach(x => { cats[x.cat] = (cats[x.cat] || 0) + x.valor; });
+  const lista = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+  const max = lista.length ? lista[0][1] : 1;
+  const supSet = new Set(d.superfluos);
+  const subiram = c.linhas.filter(x => x.var > 0.0005).sort((a, b) => b.var - a.var);
+  const cairam = c.linhas.filter(x => x.var < -0.0005);
+  const repetidos = c.linhas.filter(x => x.antes != null);
+  const pesoSubida = soma(subiram, x => (x.unit - x.antes) * x.qtd);
+  const tips = [];
+  tips.push(`<b>${pct(c.superfluo / c.total, 0)}</b> desta compra (${brl(c.superfluo)}) foi em ${d.superfluos.join(', ').toLowerCase()}. Média de todas as compras: ${pct(mediaSup, 0)}.`);
+  if (c.cesta) tips.push(`Os <b>${c.cesta.n}</b> produtos que você repetiu da compra anterior custaram <b class="${cls(c.cesta.var)}">${spct(c.cesta.var)}</b> (${brl(c.cesta.antes)} → ${brl(c.cesta.depois)} na mesma quantidade).`);
+  if (subiram.length) tips.push(`Subiram de preço: ${subiram.slice(0, 4).map(x => `<b>${esc(x.nome)}</b> ${spct(x.var, 0)}`).join(', ')}${subiram.length > 4 ? ` e mais ${subiram.length - 4}` : ''}. Custo extra nesta compra: <b>${brl(pesoSubida)}</b>.`);
+  if (cairam.length) tips.push(`Ficaram mais baratos: ${cairam.map(x => `${esc(x.nome)} ${spct(x.var, 0)}`).join(', ')}.`);
+  return `
+  <section class="card">
+    <div class="hero-label">Compra de ${fmtDate(c.data)}</div>
+    <div class="hero-value">${brl(c.total)}</div>
+    <div class="hero-sub">${c.itens.length} linhas na nota · ${esc(c.loja)}</div>
+    ${ant ? `<div class="hero-sub" style="margin-top:6px">Compra anterior <b>${brl(ant.total)}</b> · diferença <b class="${cls(c.total - ant.total)}">${c.total >= ant.total ? '+' : ''}${brl(c.total - ant.total)}</b></div>` : ''}
+  </section>
+  <section class="kpis">
+    ${tile('Supérfluos', brl(c.superfluo), `${pct(c.superfluo / c.total, 0)} da compra`, c.superfluo / c.total > mediaSup + 0.02 ? 'neg' : '')}
+    ${tile('Essencial', brl(c.total - c.superfluo), `${pct(1 - c.superfluo / c.total, 0)} da compra`)}
+    ${tile('Preço da cesta', c.cesta ? spct(c.cesta.var) : '—', c.cesta ? `${c.cesta.n} itens repetidos` : 'primeira compra', c.cesta ? (c.cesta.var > 0 ? 'neg' : 'pos') : '')}
+    ${tile('Média por compra', brl(media), `${d.compras.length} compras`)}
+    ${tile('Produtos repetidos', `${repetidos.length}`, `de ${c.linhas.length} diferentes`)}
+    ${tile('Subiram / caíram', `${subiram.length} / ${cairam.length}`, 'vs última vez que comprou')}
+  </section>
+  <section class="card">
+    <h2>O que chama atenção</h2>
+    ${tips.map(t => `<p class="tip">${t}</p>`).join('')}
+  </section>
+  <section class="card">
+    <h2>Por categoria <small>laranja = supérfluo</small></h2>
+    <div class="bars">${lista.map(([k, v]) => `
+      <div class="bar-row">
+        <span class="bar-name">${esc(k)}</span>
+        <span class="bar-val">${brl(v)}<span class="bar-pct">${pct(v / c.total, 0)}</span></span>
+        <div class="bar-track"><div class="bar-fill ${supSet.has(k) ? 'sup' : ''}" style="width:${v / max * 100}%"></div></div>
+      </div>`).join('')}</div>
+  </section>
+  <section class="card"><h2>Compra a compra <small>essencial × supérfluo</small></h2><div class="chart"><canvas id="ch-compras"></canvas></div></section>
+  <section class="card"><h2>Onde vai o dinheiro <small>todas as compras</small></h2><div class="list">${
+    [...d.produtos].sort((a, b) => b.gasto - a.gasto).slice(0, 10).map(p => `
+      <div class="row">
+        <div class="row-main"><span class="row-title">${esc(p.nome)}</span><span class="row-sub"><span class="badge ${supSet.has(p.cat) ? 'warn' : ''}">${esc(p.cat)}</span><span>em ${p.h.length} de ${d.compras.length} compras</span></span></div>
+        <div class="row-side"><span class="row-val">${brl(p.gasto)}</span></div>
+      </div>`).join('')}</div></section>`;
+}
+
+/* --- Preços --- */
+function renderPrecos(c, d) {
+  const q = state.q.trim().toUpperCase();
+  let ps = d.produtos;
+  if (q) ps = ps.filter(p => p.nome.toUpperCase().includes(q) || p.cat.toUpperCase().includes(q));
+  else if (state.filtro === 'mudou') ps = ps.filter(p => p.var != null && Math.abs(p.var) > 0.0005);
+  else ps = ps.filter(p => p.var != null);
+  ps = [...ps].sort((a, b) => (b.var ?? -9) - (a.var ?? -9) || a.nome.localeCompare(b.nome));
+  const rep = d.produtos.filter(p => p.var != null);
+  const sub = rep.filter(p => p.var > 0.0005).length, cai = rep.filter(p => p.var < -0.0005).length;
+  const C = d.compras;
+  return `
+  <section class="card">
+    <div class="hero-label">Sua cesta ficou mais cara em</div>
+    <div class="hero-value ${cls(d.acumulado) === 'bad' ? 'neg' : 'pos'}">${spct(d.acumulado)}</div>
+    <div class="hero-sub">de ${fmtDate(C[0].data)} a ${fmtDate(C[C.length - 1].data)}, somando ${C.slice(1).map(x => x.cesta ? `<b>${spct(x.cesta.var)}</b>` : '—').join(' e ')} entre compras</div>
+    <p class="legend-note">Mesmo produto (código de barras) na mesma quantidade, compra contra a anterior. Não depende do que você escolheu levar a mais ou a menos.</p>
+  </section>
+  <section class="kpis">
+    ${tile('Comprados 2+ vezes', `${rep.length}`, `de ${d.produtos.length} produtos`)}
+    ${tile('Subiram', `${sub}`, 'primeira × última compra', sub ? 'neg' : '')}
+    ${tile('Caíram', `${cai}`, 'primeira × última compra', cai ? 'pos' : '')}
+  </section>
+  <section class="card">
+    <input class="search" type="search" id="busca" placeholder="Buscar produto ou categoria (todas as compras)" value="${esc(state.q)}" autocomplete="off">
+    ${q ? '' : `<div class="seg" style="margin:6px 0 4px">${[['mudou', 'Mudaram de preço'], ['todos', 'Todos os repetidos']].map(([k, l]) => `<button data-filtro="${k}" class="${state.filtro === k ? 'active' : ''}">${l}</button>`).join('')}</div>`}
+    ${ps.length ? `<div class="list">${ps.map(p => `
+      <div class="row">
+        <div class="row-main">
+          <span class="row-title">${esc(p.nome)}</span>
+          <span class="row-sub trail">${p.h.map(h => `${curta(C[h.i].data)} ${brl(h.unit)}${p.un === 'KG' ? '/kg' : ''}`).join(' → ')}</span>
+        </div>
+        <div class="row-side">${p.var != null ? `<span class="badge ${cls(p.var)}">${spct(p.var, 0)}</span>` : '<span class="badge">1 compra</span>'}</div>
+      </div>`).join('')}</div>` : '<p class="empty">Nada encontrado.</p>'}
+  </section>`;
+}
+
+/* --- Itens --- */
+function renderItens(c, d) {
+  const q = state.q.trim().toUpperCase();
+  const its = c.linhas.filter(x => !q || x.nome.toUpperCase().includes(q) || x.cat.toUpperCase().includes(q));
+  const grupos = {};
+  its.forEach(x => (grupos[x.cat] ||= []).push(x));
+  const ordem = Object.entries(grupos).map(([k, v]) => [k, v.sort((a, b) => b.valor - a.valor), soma(v, x => x.valor)]).sort((a, b) => b[2] - a[2]);
+  return `
+  <section class="card">
+    <input class="search" type="search" id="busca" placeholder="Buscar nesta compra" value="${esc(state.q)}" autocomplete="off">
+    ${ordem.length ? ordem.map(([k, v, t]) => `
+      <div class="group-title">${esc(k)} · ${brl(t)}</div>
+      <div class="list">${v.map(x => `
+        <div class="row">
+          <div class="row-main">
+            <span class="row-title">${esc(x.nome)}</span>
+            <span class="row-sub"><span>${qtdTxt(x)}</span>${x.var != null && Math.abs(x.var) > 0.0005 ? `<span class="badge ${cls(x.var)}">${spct(x.var, 0)} (era ${brl(x.antes)})</span>` : x.antes == null && state.i ? '<span class="badge">novo</span>' : ''}</span>
+          </div>
+          <div class="row-side"><span class="row-val">${brl(x.valor)}</span></div>
+        </div>`).join('')}</div>`).join('') : '<p class="empty">Nada encontrado.</p>'}
+    <div class="total-row"><span>Total da nota</span><span>${brl(c.total)}</span></div>
+  </section>`;
+}
+
+/* ---------- gráfico ---------- */
+function graficos(d) {
+  const el = document.getElementById('ch-compras');
+  if (!el || !window.Chart) return;
+  const muted = css('--muted'), grid = css('--grid'), text2 = css('--text-2');
+  const C = d.compras, bar = { borderRadius: 4, maxBarThickness: 36 };
+  charts.push(new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: C.map(x => curta(x.data)),
+      datasets: [
+        { label: 'Essencial', data: C.map(x => x.total - x.superfluo), backgroundColor: css('--accent'), ...bar },
+        { label: 'Supérfluo', data: C.map(x => x.superfluo), backgroundColor: css('--series-2'), ...bar },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: text2, boxWidth: 8, boxHeight: 8, usePointStyle: true, padding: 14 } },
+        tooltip: { callbacks: { label: t => ` ${t.dataset.label}: ${brl(t.parsed.y)}`, footer: t => `Total: ${brl(soma(t, x => x.parsed.y))}` } },
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, border: { color: grid }, ticks: { color: muted, font: { size: 11 } } },
+        y: { stacked: true, beginAtZero: true, grid: { color: grid }, border: { display: false }, ticks: { color: muted, font: { size: 11 } } },
+      },
+    },
+  }));
+}
+
+/* ---------- eventos ---------- */
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-tab],[data-i],[data-filtro]');
+  if (!t || !state.dados) return;
+  let toTop = false;
+  if (t.dataset.tab) { if (state.tab !== t.dataset.tab) state.q = ''; state.tab = t.dataset.tab; toTop = true; }
+  if (t.dataset.i != null) { state.i = +t.dataset.i; renderChips(); }
+  if (t.dataset.filtro) state.filtro = t.dataset.filtro;
+  render(toTop);
+});
+document.addEventListener('input', e => {
+  if (e.target.id !== 'busca') return;
+  state.q = e.target.value;
+  const pos = e.target.selectionStart;
+  render();
+  const b = $('#busca'); b.focus(); b.setSelectionRange(pos, pos);
+});
+
+if (window.Chart) Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+init();

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mercado</title>
+<meta name="description" content="Compras de mercado e variação de preços">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mercado">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<link rel="stylesheet" href="../style.css">
+<style>
+  .search { width: 100%; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); margin-bottom: 6px; }
+  .search:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  .bar-fill.sup { background: var(--series-2); }
+  .trail { font-variant-numeric: tabular-nums; }
+  .tip { font-size: 14px; padding: 10px 0; border-top: 1px solid var(--line); color: var(--text-2); }
+  .tip:first-of-type { border-top: 0; padding-top: 0; }
+  .tip b { color: var(--text); }
+  .topbar a.icon-btn { text-decoration: none; }
+  .topbar-actions { display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+
+<section id="lock" class="lock">
+  <form id="lock-form" class="lock-card" autocomplete="off">
+    <div class="lock-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2Zm-7-2a2 2 0 0 1 4 0v2h-4V6Zm2 11.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
+    </div>
+    <h1>Mercado</h1>
+    <p class="lock-sub">Os dados são descriptografados só neste aparelho.</p>
+    <label class="field">
+      <span>Senha</span>
+      <input id="pwd" type="password" autocomplete="current-password" required>
+    </label>
+    <label class="check"><input id="remember" type="checkbox" checked> Lembrar neste aparelho</label>
+    <button id="unlock" class="btn" type="submit">Entrar</button>
+    <p id="lock-status" class="lock-status" role="status"></p>
+  </form>
+</section>
+
+<div id="app" class="app hidden">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-title">Mercado</span>
+      <span class="brand-sub" id="updated"></span>
+    </div>
+    <div class="topbar-actions">
+      <a href="../" class="icon-btn" title="Finanças" aria-label="Ir para Finanças">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z"/></svg>
+      </a>
+      <button id="logout" class="icon-btn" title="Sair" aria-label="Sair">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M10 17v-2h4v-6h-4V7l-5 5 5 5Zm-6 4h9a2 2 0 0 0 2-2v-3h-2v3H4V5h9v3h2V5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Zm16-9-4-4v3h-4v2h4v3l4-4Z"/></svg>
+      </button>
+    </div>
+  </header>
+  <nav id="months" class="months" aria-label="Compras"></nav>
+  <main id="view" class="view"></main>
+  <nav class="tabbar" id="tabbar" aria-label="Seções">
+    <button data-tab="resumo" class="active"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z"/></svg><span>Resumo</span></button>
+    <button data-tab="precos"><svg viewBox="0 0 24 24"><path fill="currentColor" d="m16 6 2.3 2.3-4.9 4.9-4-4L2 16.6 3.4 18l6-6 4 4 6.3-6.3L22 12V6h-6Z"/></svg><span>Preços</span></button>
+    <button data-tab="itens"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM1 2v2h2l3.6 7.6L5.2 14A2 2 0 0 0 7 17h12v-2H7.4a.25.25 0 0 1-.2-.4l.9-1.6h7.4a2 2 0 0 0 1.8-1l3.6-6.5A1 1 0 0 0 20 4H5.2l-.9-2H1Zm16 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/></svg><span>Itens</span></button>
+  </nav>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="mercado.js"></script>
+</body>
+</html>
