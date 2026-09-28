@@ -223,7 +223,7 @@ function renderVariaveis(m) {
 /* --- Investir --- */
 function renderInvestir(m, d) {
   const inv = d.investimentos, car = d.carteira;
-  const cls = car.classes.filter(c => c.ideal > 0);
+  const cls = car.classes.filter(c => c.saldo > 0 || c.ideal > 0);
   const ativos = [...car.ativos].sort((a, b) => b.saldo - a.saldo);
   const prov = [...car.proventos].sort((a, b) => (b.data || '').localeCompare(a.data || ''));
   return `
@@ -245,11 +245,11 @@ function renderInvestir(m, d) {
     <div class="bars">${cls.map(c => `
       <div class="bar-row">
         <span class="bar-name">${esc(c.classe)}</span>
-        <span class="bar-val">${brl(c.saldo)}<span class="bar-pct">${pct(c.pct, 0)} de ${pct(c.ideal, 0)}</span></span>
+        <span class="bar-val">${brl(c.saldo)}<span class="bar-pct">${c.classe === 'Tesouro Direto' ? '0% · reserva para viagem' : `${pct(c.pct, 0)} de ${pct(c.ideal, 0)}`}</span></span>
         <div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, c.pct * 100)}%"></div><i class="bar-tick" style="left:${Math.min(100, c.ideal * 100)}%"></i></div>
         ${c.falta > 0 ? `<span class="row-sub" style="grid-column:1/-1">Falta ${brl(c.falta)} para chegar ao ideal</span>` : ''}
       </div>`).join('')}</div>
-    <p class="legend-note">Barra = participação atual · traço = participação ideal · Tesouro fica fora (reserva da Eurotrip)</p>
+    <p class="legend-note">Barra = participação atual · traço = participação ideal · Tesouro Direto é reserva para a viagem de abr/2027 e fica fora do cálculo (0%)</p>
   </section>
   <section class="card">
     <h2>Ativos <small>${ativos.length}</small></h2>
