@@ -223,7 +223,7 @@ function renderVariaveis(m) {
 /* --- Investir --- */
 function renderInvestir(m, d) {
   const inv = d.investimentos, car = d.carteira;
-  const cls = car.classes.filter(c => c.saldo > 0 || c.ideal > 0);
+  const cls = car.classes.filter(c => c.ideal > 0);
   const ativos = [...car.ativos].sort((a, b) => b.saldo - a.saldo);
   const prov = [...car.proventos].sort((a, b) => (b.data || '').localeCompare(a.data || ''));
   return `
@@ -249,7 +249,7 @@ function renderInvestir(m, d) {
         <div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, c.pct * 100)}%"></div><i class="bar-tick" style="left:${Math.min(100, c.ideal * 100)}%"></i></div>
         ${c.falta > 0 ? `<span class="row-sub" style="grid-column:1/-1">Falta ${brl(c.falta)} para chegar ao ideal</span>` : ''}
       </div>`).join('')}</div>
-    <p class="legend-note">Barra = participação atual · traço = participação ideal</p>
+    <p class="legend-note">Barra = participação atual · traço = participação ideal · Tesouro fica fora (reserva da Eurotrip)</p>
   </section>
   <section class="card">
     <h2>Ativos <small>${ativos.length}</small></h2>
