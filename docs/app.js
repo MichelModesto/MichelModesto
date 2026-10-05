@@ -366,9 +366,9 @@ function renderViagem(m, d) {
   </section>
   <section class="kpis four">
     ${tile('Hospedagens', brl(v.hospedagens), `${ok.length} reservas no cartão`)}
-    ${tile('Viagem Europa', brl(v.parcelamento), 'parcelado no cartão')}
+    ${tile('Passagens', brl(v.parcelamento), 'aéreas, parceladas no cartão')}
     ${tile('Câmbio', brl(v.cambio), 'comprado na Wise')}
-    ${tile('Reserva', brl(v.reserva), 'Tesouro Selic')}
+    ${tile('Reserva', brl(v.reserva), v.resgatado ? `Tesouro Selic · ${brl(v.resgatado)} já foi p/ a Wise` : 'Tesouro Selic')}
   </section>
   <section class="card">
     <h2>Roteiro <small>${v.roteiro.length} cidades</small></h2>
