@@ -325,44 +325,50 @@ function renderImovel(m, d) {
 }
 
 /* --- Viagem --- */
+const MESES_C = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const fmtHora = iso => iso && iso.length > 10 ? iso.slice(11, 16) : '';
+const diaMes = iso => `${+iso.slice(8, 10)} ${MESES_C[+iso.slice(5, 7) - 1]}`;
 function renderViagem(m, d) {
   const v = d.viagem;
   if (!v) return '<section class="card"><p class="empty">Sem aba Viagem na planilha.</p></section>';
   const dias = Math.ceil((new Date(v.chegada + 'T00:00') - new Date()) / 864e5);
-  const noites = v.roteiro.reduce((s, c) => s + (c.noites || 0), 0);
+  const ok = v.roteiro.filter(c => c.status === 'Reservado');
   const pend = v.roteiro.filter(c => c.status !== 'Reservado');
-  const total = v.hospedagens + v.parcelamento + v.cambio;
+  const noites = ok.reduce((s, c) => s + (c.noites || 0), 0);
   const mapa = e => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e)}`;
-  const cidade = c => c.status === 'Reservado' ? `
-    <div class="row">
-      <div class="row-main">
-        <span class="row-title">${esc(c.cidade)} <small class="muted">${esc(c.pais || '')}</small></span>
-        <span class="row-sub">${esc(c.hospedagem || '')}</span>
-        <span class="row-sub">entrada ${fmtDia(c.checkin)} ${fmtHora(c.checkin)} · saída ${fmtDia(c.checkout)} ${fmtHora(c.checkout)} · ${c.noites} noite${c.noites === 1 ? '' : 's'}</span>
-        ${c.endereco ? `<span class="row-sub"><a href="${mapa(c.endereco)}" target="_blank" rel="noopener">${esc(c.endereco)}</a></span>` : ''}
+  const cidade = c => {
+    const res = c.status === 'Reservado';
+    return `
+    <div class="trip">
+      <div class="trip-date ${res ? '' : 'todo'}">${res ? `<b>${+c.checkin.slice(8, 10)}</b><span>${MESES_C[+c.checkin.slice(5, 7) - 1]}</span>` : '<b>?</b>'}</div>
+      <div class="trip-main">
+        <div class="trip-head"><span class="row-title">${esc(c.cidade)}</span><span class="muted small">${esc(c.pais || '')}</span></div>
+        ${res ? `
+        <div class="row-sub">${diaMes(c.checkin)} → ${diaMes(c.checkout)} · ${c.noites} noite${c.noites === 1 ? '' : 's'}</div>
+        <div class="row-sub">${esc(c.hospedagem || '')}</div>
+        <div class="row-sub">check-in ${fmtHora(c.checkin)} · check-out ${fmtHora(c.checkout)}</div>
+        ${c.endereco ? `<div class="row-sub"><a href="${mapa(c.endereco)}" target="_blank" rel="noopener">${esc(c.endereco)}</a></div>` : ''}`
+        : '<div class="row-sub">datas e hospedagem a definir</div>'}
       </div>
-      <div class="row-side">
-        <span class="row-val">${brl(c.total)}</span>
-        ${c.parcelas ? `<span class="row-val small">${c.parcelas}× ${brl(c.parcela)}</span>` : ''}
-      </div>
-    </div>` : `
-    <div class="row muted">
-      <div class="row-main"><span class="row-title">${esc(c.cidade)}</span><span class="row-sub">${esc(c.pais || '')}</span></div>
-      <div class="row-side"><span class="badge warn">${esc(c.status || 'Falta reservar')}</span></div>
+      <div class="row-side">${res
+        ? `<span class="row-val">${brl(c.total)}</span>${c.parcelas ? `<span class="row-val small">${c.parcelas}× ${brl(c.parcela)}</span>` : ''}`
+        : `<span class="badge warn">${esc(c.status || 'Falta reservar')}</span>`}</div>
     </div>`;
+  };
+  const moedas = v.moedas.filter(x => x.valor);
   return `
   <section class="card">
     <div class="hero-label">Eurotrip · chegada em Londres <span class="badge accent">${fmtDate(v.chegada)}</span></div>
     <div class="hero-value">${dias > 0 ? `${dias} <span class="unit">dias</span>` : 'Boa viagem!'}</div>
-    <div class="hero-sub"><b>${noites}</b> noites reservadas · ${pend.length ? `falta reservar <b>${pend.map(c => esc(c.cidade)).join(', ')}</b>` : 'tudo reservado'}</div>
+    <div class="hero-sub"><b>${ok.length}</b> de ${v.roteiro.length} cidades reservadas · <b>${noites}</b> noites</div>
+    <div class="meter"><div class="meter-fill" style="width:${v.roteiro.length ? ok.length / v.roteiro.length * 100 : 0}%"></div></div>
+    <div class="meter-label">${pend.length ? `falta reservar ${pend.map(c => esc(c.cidade)).join(', ')}` : 'tudo reservado'}</div>
   </section>
-  <section class="kpis">
-    ${tile('Hospedagens', brl(v.hospedagens), 'reservadas, no cartão')}
-    ${tile('Viagem Europa', brl(v.parcelamento), 'parcelamento no cartão')}
-    ${tile('Câmbio', brl(v.cambio), v.moedas.filter(x => x.valor).map(x => `${x.moeda} ${num(x.valor)}`).join(' · '))}
-    ${tile('Total até agora', brl(total), 'hospedagem + parcelamento + câmbio')}
-    ${tile('Reserva Tesouro', brl(v.reserva), 'Tesouro Selic guardado p/ a viagem')}
+  <section class="kpis four">
+    ${tile('Hospedagens', brl(v.hospedagens), `${ok.length} reservas no cartão`)}
+    ${tile('Viagem Europa', brl(v.parcelamento), 'parcelado no cartão')}
+    ${tile('Câmbio', brl(v.cambio), 'comprado na Wise')}
+    ${tile('Reserva', brl(v.reserva), 'Tesouro Selic')}
   </section>
   <section class="card">
     <h2>Roteiro <small>${v.roteiro.length} cidades</small></h2>
@@ -370,6 +376,7 @@ function renderViagem(m, d) {
   </section>
   <section class="card">
     <h2>Câmbio <small>Wise</small></h2>
+    ${moedas.length ? `<div class="kpis">${moedas.map(x => tile(x.moeda, num(x.valor), `pago ${brl(x.pago)} · média ${num(x.pago / x.valor, 4)}`)).join('')}</div>` : ''}
     <div class="list">${v.compras.map(c => `
       <div class="row">
         <div class="row-main">

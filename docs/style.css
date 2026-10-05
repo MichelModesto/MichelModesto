@@ -259,3 +259,13 @@ details summary::-webkit-details-marker { display: none; }
 .hero-value.mid { font-size: 28px; }
 .hero-value .unit { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
 .row-sub a { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+.trip { display: flex; gap: 12px; align-items: flex-start; padding: 14px 0; border-top: 1px solid var(--line); }
+.trip:first-child { border-top: 0; }
+.trip-date { flex: 0 0 48px; height: 52px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
+.trip-date b { font-size: 20px; font-weight: 700; }
+.trip-date span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-top: 3px; }
+.trip-date.todo { background: var(--warn-soft); color: var(--warn); }
+.trip-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.trip-head { display: flex; gap: 6px; align-items: baseline; }
+.small { font-size: 12px; }
+.card .kpis { margin-bottom: 8px; }
