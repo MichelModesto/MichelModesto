@@ -98,7 +98,7 @@ function render(toTop = false) {
   const d = state.dados, m = d.meses[state.mes];
   $$('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
   $('#months').classList.toggle('hidden', !(state.tab === 'resumo' || state.tab === 'gastos'));
-  const views = { resumo: renderResumo, gastos: renderGastos, investir: renderInvestir, imovel: renderImovel, metas: renderMetas };
+  const views = { resumo: renderResumo, gastos: renderGastos, investir: renderInvestir, imovel: renderImovel, viagem: renderViagem, metas: renderMetas };
   $('#view').innerHTML = views[state.tab](m, d);
   afterRender(m, d);
   if (toTop) window.scrollTo({ top: 0 });
@@ -321,6 +321,63 @@ function renderImovel(m, d) {
       <dt>Aumento médio por mês</dt><dd>${brl((f.aumento_aj || 0) + (f.aumento_seguro || 0))}</dd>
       <dt>Taxa de administração</dt><dd>${brl(f.adm)}</dd>
     </dl>
+  </section>`;
+}
+
+/* --- Viagem --- */
+const fmtHora = iso => iso && iso.length > 10 ? iso.slice(11, 16) : '';
+function renderViagem(m, d) {
+  const v = d.viagem;
+  if (!v) return '<section class="card"><p class="empty">Sem aba Viagem na planilha.</p></section>';
+  const dias = Math.ceil((new Date(v.chegada + 'T00:00') - new Date()) / 864e5);
+  const noites = v.roteiro.reduce((s, c) => s + (c.noites || 0), 0);
+  const pend = v.roteiro.filter(c => c.status !== 'Reservado');
+  const total = v.hospedagens + v.parcelamento + v.cambio;
+  const mapa = e => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e)}`;
+  const cidade = c => c.status === 'Reservado' ? `
+    <div class="row">
+      <div class="row-main">
+        <span class="row-title">${esc(c.cidade)} <small class="muted">${esc(c.pais || '')}</small></span>
+        <span class="row-sub">${esc(c.hospedagem || '')}</span>
+        <span class="row-sub">entrada ${fmtDia(c.checkin)} ${fmtHora(c.checkin)} · saída ${fmtDia(c.checkout)} ${fmtHora(c.checkout)} · ${c.noites} noite${c.noites === 1 ? '' : 's'}</span>
+        ${c.endereco ? `<span class="row-sub"><a href="${mapa(c.endereco)}" target="_blank" rel="noopener">${esc(c.endereco)}</a></span>` : ''}
+      </div>
+      <div class="row-side">
+        <span class="row-val">${brl(c.total)}</span>
+        ${c.parcelas ? `<span class="row-val small">${c.parcelas}× ${brl(c.parcela)}</span>` : ''}
+      </div>
+    </div>` : `
+    <div class="row muted">
+      <div class="row-main"><span class="row-title">${esc(c.cidade)}</span><span class="row-sub">${esc(c.pais || '')}</span></div>
+      <div class="row-side"><span class="badge warn">${esc(c.status || 'Falta reservar')}</span></div>
+    </div>`;
+  return `
+  <section class="card">
+    <div class="hero-label">Eurotrip · chegada em Londres <span class="badge accent">${fmtDate(v.chegada)}</span></div>
+    <div class="hero-value">${dias > 0 ? `${dias} <span class="unit">dias</span>` : 'Boa viagem!'}</div>
+    <div class="hero-sub"><b>${noites}</b> noites reservadas · ${pend.length ? `falta reservar <b>${pend.map(c => esc(c.cidade)).join(', ')}</b>` : 'tudo reservado'}</div>
+  </section>
+  <section class="kpis">
+    ${tile('Hospedagens', brl(v.hospedagens), 'reservadas, no cartão')}
+    ${tile('Viagem Europa', brl(v.parcelamento), 'parcelamento no cartão')}
+    ${tile('Câmbio', brl(v.cambio), v.moedas.filter(x => x.valor).map(x => `${x.moeda} ${num(x.valor)}`).join(' · '))}
+    ${tile('Total até agora', brl(total), 'hospedagem + parcelamento + câmbio')}
+    ${tile('Reserva Tesouro', brl(v.reserva), 'Tesouro Selic guardado p/ a viagem')}
+  </section>
+  <section class="card">
+    <h2>Roteiro <small>${v.roteiro.length} cidades</small></h2>
+    <div class="list">${v.roteiro.map(cidade).join('')}</div>
+  </section>
+  <section class="card">
+    <h2>Câmbio <small>Wise</small></h2>
+    <div class="list">${v.compras.map(c => `
+      <div class="row">
+        <div class="row-main">
+          <span class="row-title">${esc(c.moeda)} ${num(c.valor)}</span>
+          <span class="row-sub">${fmtDate(c.data)} · ${esc(c.conta || '')} · cotação ${num(c.cotacao, 4)}</span>
+        </div>
+        <div class="row-side"><span class="row-val">${brl(c.pago)}</span></div>
+      </div>`).join('')}</div>
   </section>`;
 }
 

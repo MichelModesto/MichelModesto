@@ -258,3 +258,4 @@ details summary { cursor: pointer; padding: 12px 0 4px; font-size: 13px; font-we
 details summary::-webkit-details-marker { display: none; }
 .hero-value.mid { font-size: 28px; }
 .hero-value .unit { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.row-sub a { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
