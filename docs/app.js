@@ -16,7 +16,7 @@ const compact = v => Math.abs(v) >= 1000 ? (v / 1000).toLocaleString('pt-BR', { 
 const tile = (label, value, sub = '', cls = '') =>
   `<div class="tile"><div class="tile-label">${label}</div><div class="tile-value ${cls}">${value}</div>${sub ? `<div class="tile-sub">${sub}</div>` : ''}</div>`;
 
-const state = { dados: null, mes: 0, tab: 'resumo', sub: 'cartao', cat: 'Todas' };
+const state = { dados: null, mes: 0, tab: 'resumo', sub: 'cartao', vsub: 'resumo', cat: 'Todas' };
 const charts = [];
 
 /* ---------- criptografia (WebCrypto) ---------- */
@@ -95,6 +95,7 @@ function renderMonths() {
 
 function render(toTop = false) {
   charts.forEach(c => c.destroy()); charts.length = 0;
+  if (state.map) { state.map.remove(); state.map = null; }
   const d = state.dados, m = d.meses[state.mes];
   $$('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
   $('#months').classList.toggle('hidden', !(state.tab === 'resumo' || state.tab === 'gastos'));
@@ -335,6 +336,76 @@ const diaMes = iso => `${+iso.slice(8, 10)} ${MESES_C[+iso.slice(5, 7) - 1]}`;
 function renderViagem(m, d) {
   const v = d.viagem;
   if (!v) return '<section class="card"><p class="empty">Sem aba Viagem na planilha.</p></section>';
+  const segs = [['resumo', 'Resumo'], ['roteiro', 'Roteiro e mapa'], ['docs', 'Documentos']];
+  const body = state.vsub === 'roteiro' ? renderViagemRoteiro(v) : state.vsub === 'docs' ? renderViagemDocs(v) : renderViagemResumo(v);
+  return `<div class="seg">${segs.map(([k, l]) => `<button data-vsub="${k}" class="${state.vsub === k ? 'active' : ''}">${l}</button>`).join('')}</div>${body}`;
+}
+
+// coordenadas das cidades do mapa (as de traslado local ficam de fora)
+const COORDS = {
+  'Londres': [51.5390, -0.1426], 'Paris': [48.8216, 2.2905], 'Milão': [45.4960, 9.2160], 'St. Moritz': [46.4983, 9.8390],
+  'Roma': [41.8890, 12.5110], 'Madri': [40.4280, -3.7050], 'Barcelona': [41.3920, 2.1530],
+};
+const ROTULO = { 'Madri': 'left', 'Barcelona': 'top', 'Londres': 'left', 'Paris': 'left' };
+const coordDe = nome => COORDS[String(nome || '').split(' (')[0]];
+const linkSite = s => `<a href="https://${esc(s)}" target="_blank" rel="noopener">${esc(s.split('/')[0])}</a>`;
+
+function renderViagemRoteiro(v) {
+  const trechos = [...(v.trechos || [])].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+  const abertos = trechos.filter(t => t.status !== 'Comprado').length;
+  return `
+  <section class="card">
+    <h2>Mapa <small>trem — · voo - - -</small></h2>
+    <div id="mapa" class="mapa"></div>
+  </section>
+  <section class="card">
+    <h2>Trechos <small>${abertos ? `${abertos} a definir` : 'tudo comprado'}</small></h2>
+    <div class="list">${trechos.map(t => {
+      const voo = /^voo/i.test(t.meio || '');
+      const sites = String(t.sites || '').split('·').map(x => x.trim()).filter(Boolean);
+      return `
+      <div class="trip">
+        <div class="trip-date ${t.status === 'Comprado' ? '' : 'todo'}"><b>${+t.data.slice(8, 10)}</b><span>${MESES_C[+t.data.slice(5, 7) - 1]}</span></div>
+        <div class="trip-main">
+          <span class="row-title">${esc(t.de)} → ${esc(t.para)}</span>
+          <span class="row-sub"><span class="badge ${voo ? 'accent' : ''}">${voo ? 'Avião' : 'Trem / metrô'}</span>${esc(t.meio || '')}</span>
+          ${t.distancia || t.duracao ? `<span class="row-sub">${esc(t.distancia || '')}${t.distancia && t.duracao ? ' · ' : ''}${esc(t.duracao || '')}</span>` : ''}
+          ${t.dica ? `<span class="row-sub">${esc(t.dica)}</span>` : ''}
+          ${sites.length ? `<span class="row-sub">Onde comprar: ${sites.map(linkSite).join(' · ')}</span>` : ''}
+        </div>
+        <div class="row-side">${t.valor ? `<span class="row-val">${brl(t.valor)}</span>` : ''}<span class="badge ${t.status === 'Comprado' ? 'good' : 'warn'}">${esc(t.status || 'A definir')}</span></div>
+      </div>`; }).join('')}</div>
+  </section>`;
+}
+
+function renderViagemDocs(v) {
+  const docs = v.documentos || [];
+  const ok = docs.filter(x => x.status === 'OK' || x.status === 'Sem ação').length;
+  const cls = st => st === 'OK' ? 'good' : st === 'Sem ação' ? '' : st === 'Verificar' ? 'accent' : 'warn';
+  return `
+  <section class="card">
+    <div class="hero-label">Documentos para a viagem</div>
+    <div class="hero-value mid">${ok} <span class="unit">de ${docs.length} resolvidos</span></div>
+    <div class="meter"><div class="meter-fill" style="width:${docs.length ? ok / docs.length * 100 : 0}%"></div></div>
+    <div class="meter-label">Quando tirar um, me manda o comprovante que eu marco como OK e guardo.</div>
+  </section>
+  <section class="card">
+    <h2>Checklist <small>Michel e Ariana</small></h2>
+    <div class="list">${docs.map(x => `
+      <div class="row">
+        <div class="row-main">
+          <span class="row-title wrap">${esc(x.doc)}</span>
+          <span class="row-sub">${esc(x.para || '')}${x.obrigatorio ? ` · ${esc(x.obrigatorio)}` : ''}</span>
+          ${x.obs ? `<span class="row-sub">${esc(x.obs)}</span>` : ''}
+          ${x.onde ? `<span class="row-sub">Onde: ${linkSite(x.onde)}</span>` : ''}
+          ${x.comprovante ? `<span class="row-sub">Comprovante salvo: ${esc(x.comprovante)}</span>` : ''}
+        </div>
+        <div class="row-side"><span class="badge ${cls(x.status)}">${esc(x.status || 'Pendente')}</span></div>
+      </div>`).join('')}</div>
+  </section>`;
+}
+
+function renderViagemResumo(v) {
   const dias = Math.ceil((new Date(v.chegada + 'T00:00') - new Date()) / 864e5);
   const ok = v.roteiro.filter(c => c.status === 'Reservado');
   const pend = v.roteiro.filter(c => c.status !== 'Reservado');
@@ -390,7 +461,7 @@ function renderViagem(m, d) {
     <p class="legend-note">Reserva no Tesouro Selic: ${brl(v.reserva)}${v.resgatado ? ` (${brl(v.resgatado)} já foi para a Wise)` : ''}. Não entra na soma: é de onde sai o dinheiro.</p>
   </section>
   <section class="card">
-    <h2>Roteiro <small>${v.roteiro.length} cidades</small></h2>
+    <h2>Hospedagens <small>${v.roteiro.length} cidades</small></h2>
     <div class="list">${v.roteiro.map(cidade).join('')}</div>
   </section>
   ${(v.voos || []).length ? `<section class="card">
@@ -408,18 +479,6 @@ function renderViagem(m, d) {
         ${pula ? '<div class="row-side"><span class="badge warn">Não embarcar</span></div>' : ''}
       </div>`; }).join('')}</div>
     ${v.bagagem ? `<p class="legend-note">${esc(v.bagagem)}</p>` : ''}
-  </section>` : ''}
-  ${trechos.length ? `<section class="card">
-    <h2>Locomoção <small>${tAbertos.length ? `${tAbertos.length} a definir` : 'tudo comprado'}</small></h2>
-    <div class="list">${trechos.map(t => `
-      <div class="trip">
-        <div class="trip-date ${t.status === 'Comprado' ? '' : 'todo'}"><b>${+t.data.slice(8, 10)}</b><span>${MESES_C[+t.data.slice(5, 7) - 1]}</span></div>
-        <div class="trip-main">
-          <span class="row-title">${esc(t.de)} → ${esc(t.para)}</span>
-          <span class="row-sub">${esc(t.meio || '')}</span>
-        </div>
-        <div class="row-side">${t.valor ? `<span class="row-val">${brl(t.valor)}</span>` : ''}<span class="badge ${t.status === 'Comprado' ? 'good' : 'warn'}">${esc(t.status || 'A definir')}</span></div>
-      </div>`).join('')}</div>
   </section>` : ''}
   <section class="card">
     <h2>Câmbio <small>Wise</small></h2>
@@ -476,7 +535,38 @@ function mkChart(id, type, labels, datasets) {
   }));
 }
 
+function desenhaMapa(v) {
+  const el = document.getElementById('mapa');
+  if (!el || !window.L) return;
+  const map = L.map(el, { scrollWheelZoom: false });
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 12 }).addTo(map);
+  const cor = css('--accent'), cor2 = css('--warn');
+  const pts = [];
+  [...(v.trechos || [])].sort((a, b) => (a.data || '').localeCompare(b.data || '')).forEach(t => {
+    const a = coordDe(t.de), b = coordDe(t.para);
+    if (!a || !b) return;
+    const voo = /^voo/i.test(t.meio || ''), extra = /opcional|bate-volta/i.test(`${t.meio} ${t.para}`);
+    L.polyline([a, b], { color: extra ? cor2 : cor, weight: 3, opacity: .9, dashArray: voo ? '6 8' : extra ? '2 6' : null })
+      .bindTooltip(`${t.de} → ${t.para}<br>${t.distancia || ''} · ${t.duracao || ''}`).addTo(map);
+    pts.push(a, b);
+  });
+  v.roteiro.forEach((c, i) => {
+    const p = coordDe(c.cidade);
+    if (!p) return;
+    L.circleMarker(p, { radius: 7, color: cor, fillColor: cor, fillOpacity: 1, weight: 2 })
+      .bindTooltip(`${i + 1}. ${c.cidade}`, { permanent: true, direction: ROTULO[c.cidade] || 'right', className: 'map-label' }).addTo(map);
+    pts.push(p);
+  });
+  const st = coordDe('St. Moritz');
+  if ((v.trechos || []).some(t => /St\. Moritz/.test(t.para || ''))) {
+    L.circleMarker(st, { radius: 5, color: cor2, fillColor: cor2, fillOpacity: 1 }).bindTooltip('St. Moritz (opcional)', { permanent: true, direction: 'right', className: 'map-label' }).addTo(map);
+  }
+  if (pts.length) map.fitBounds(pts, { padding: [24, 24] });
+  state.map = map;
+}
+
 function afterRender(m, d) {
+  if (state.tab === 'viagem' && state.vsub === 'roteiro' && d.viagem) desenhaMapa(d.viagem);
   if (state.tab === 'resumo') {
     const ms = d.meses.filter(x => situacao(x) !== 'Previsto');
     mkChart('ch-meses', 'bar', ms.map(x => x.rotulo), [
@@ -494,12 +584,13 @@ function afterRender(m, d) {
 
 /* ---------- eventos ---------- */
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-tab],[data-mes],[data-sub],[data-cat]');
+  const t = e.target.closest('[data-tab],[data-mes],[data-sub],[data-vsub],[data-cat]');
   if (!t || !state.dados) return;
   let toTop = false;
   if (t.dataset.tab) { state.tab = t.dataset.tab; toTop = true; }
   if (t.dataset.mes != null) { state.mes = +t.dataset.mes; state.cat = 'Todas'; renderMonths(); toTop = true; }
   if (t.dataset.sub) state.sub = t.dataset.sub;
+  if (t.dataset.vsub) { state.vsub = t.dataset.vsub; toTop = true; }
   if (t.dataset.cat) state.cat = t.dataset.cat;
   render(toTop);
 });

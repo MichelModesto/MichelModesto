@@ -273,3 +273,9 @@ details summary::-webkit-details-marker { display: none; }
 .trip.skip .row-title { text-decoration: line-through; color: var(--muted); }
 .trip-main .row-sub { white-space: normal; }
 .notice { display: block; width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; font-size: 13px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); }
+.mapa { height: 360px; border-radius: 12px; overflow: hidden; background: var(--surface-2); z-index: 0; }
+.map-label { background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: none; font-weight: 600; font-size: 12px; padding: 2px 6px; }
+.map-label::before { display: none; }
+.row-title.wrap { white-space: normal; }
+.seg + .card, .seg + .notice { margin-top: 0; }
+@media (prefers-color-scheme: dark) { .mapa .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); } }
