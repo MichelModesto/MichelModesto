@@ -272,3 +272,4 @@ details summary::-webkit-details-marker { display: none; }
 .hero-value + .bars { margin-top: 14px; }
 .trip.skip .row-title { text-decoration: line-through; color: var(--muted); }
 .trip-main .row-sub { white-space: normal; }
+.notice { display: block; width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; font-size: 13px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); }

@@ -166,7 +166,11 @@ function renderCartao(m) {
   const byDate = {};
   filt.forEach(c => { (byDate[c.data || ''] ||= []).push(c); });
   const dates = Object.keys(byDate).sort().reverse();
+  // compras recentes caem na fatura seguinte; avisa quando ela já tem lançamentos
+  const iProx = state.dados.meses.indexOf(m) + 1, prox = state.dados.meses[iProx];
+  const novas = prox && situacao(m) !== 'Previsto' ? prox.cartao.filter(c => !c.auto) : [];
   return `
+  ${novas.length ? `<button class="notice" data-mes="${iProx}">${novas.length} compra${novas.length > 1 ? 's' : ''} recente${novas.length > 1 ? 's' : ''} já na fatura de <b>${esc(prox.rotulo)}</b> · ver →</button>` : ''}
   <section class="card">
     <div class="hero-label">Fatura de ${esc(m.nome)}</div>
     <div class="hero-value">${brl(total)}</div>
