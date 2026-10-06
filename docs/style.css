@@ -269,3 +269,6 @@ details summary::-webkit-details-marker { display: none; }
 .trip-head { display: flex; gap: 6px; align-items: baseline; }
 .small { font-size: 12px; }
 .card .kpis { margin-bottom: 8px; }
+.hero-value + .bars { margin-top: 14px; }
+.trip.skip .row-title { text-decoration: line-through; color: var(--muted); }
+.trip-main .row-sub { white-space: normal; }
