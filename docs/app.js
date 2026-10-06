@@ -346,7 +346,7 @@ function renderViagem(m, d) {
         ${res ? `
         <div class="row-sub">${diaMes(c.checkin)} → ${diaMes(c.checkout)} · ${c.noites} noite${c.noites === 1 ? '' : 's'}</div>
         <div class="row-sub">${esc(c.hospedagem || '')}</div>
-        <div class="row-sub">check-in ${fmtHora(c.checkin)} · check-out ${fmtHora(c.checkout)}</div>
+        <div class="row-sub">${fmtHora(c.checkin) ? `check-in ${fmtHora(c.checkin)} · check-out ${fmtHora(c.checkout)}` : 'horários a confirmar'}</div>
         ${c.endereco ? `<div class="row-sub"><a href="${mapa(c.endereco)}" target="_blank" rel="noopener">${esc(c.endereco)}</a></div>` : ''}`
         : '<div class="row-sub">datas e hospedagem a definir</div>'}
       </div>
@@ -356,16 +356,18 @@ function renderViagem(m, d) {
     </div>`;
   };
   const moedas = v.moedas.filter(x => x.valor);
+  const trechos = v.trechos || [];
+  const tAbertos = trechos.filter(t => t.status !== 'Comprado');
   return `
   <section class="card">
     <div class="hero-label">Eurotrip · chegada em Londres <span class="badge accent">${fmtDate(v.chegada)}</span></div>
     <div class="hero-value">${dias > 0 ? `${dias} <span class="unit">dias</span>` : 'Boa viagem!'}</div>
     <div class="hero-sub"><b>${ok.length}</b> de ${v.roteiro.length} cidades reservadas · <b>${noites}</b> noites</div>
     <div class="meter"><div class="meter-fill" style="width:${v.roteiro.length ? ok.length / v.roteiro.length * 100 : 0}%"></div></div>
-    <div class="meter-label">${pend.length ? `falta reservar ${pend.map(c => esc(c.cidade)).join(', ')}` : 'tudo reservado'}</div>
+    <div class="meter-label">${pend.length ? `falta reservar ${pend.map(c => esc(c.cidade)).join(', ')}` : 'hospedagens fechadas'}${tAbertos.length ? ` · ${tAbertos.length} trechos de locomoção a definir` : ''}</div>
   </section>
   <section class="kpis four">
-    ${tile('Hospedagens', brl(v.hospedagens), `${ok.length} reservas no cartão`)}
+    ${tile('Hospedagens', brl(v.hospedagens), `${ok.length} reservas · 6× ${brl(v.hospedagens / 6)}`)}
     ${tile('Passagens', brl(v.parcelamento), 'aéreas, parceladas no cartão')}
     ${tile('Câmbio', brl(v.cambio), 'comprado na Wise')}
     ${tile('Reserva', brl(v.reserva), v.resgatado ? `Tesouro Selic · ${brl(v.resgatado)} já foi p/ a Wise` : 'Tesouro Selic')}
@@ -374,6 +376,18 @@ function renderViagem(m, d) {
     <h2>Roteiro <small>${v.roteiro.length} cidades</small></h2>
     <div class="list">${v.roteiro.map(cidade).join('')}</div>
   </section>
+  ${trechos.length ? `<section class="card">
+    <h2>Locomoção <small>${tAbertos.length ? `${tAbertos.length} a definir` : 'tudo comprado'}</small></h2>
+    <div class="list">${trechos.map(t => `
+      <div class="trip">
+        <div class="trip-date ${t.status === 'Comprado' ? '' : 'todo'}"><b>${+t.data.slice(8, 10)}</b><span>${MESES_C[+t.data.slice(5, 7) - 1]}</span></div>
+        <div class="trip-main">
+          <span class="row-title">${esc(t.de)} → ${esc(t.para)}</span>
+          <span class="row-sub">${esc(t.meio || '')}</span>
+        </div>
+        <div class="row-side">${t.valor ? `<span class="row-val">${brl(t.valor)}</span>` : ''}<span class="badge ${t.status === 'Comprado' ? 'good' : 'warn'}">${esc(t.status || 'A definir')}</span></div>
+      </div>`).join('')}</div>
+  </section>` : ''}
   <section class="card">
     <h2>Câmbio <small>Wise</small></h2>
     ${moedas.length ? `<div class="kpis">${moedas.map(x => tile(x.moeda, num(x.valor), `pago ${brl(x.pago)} · média ${num(x.pago / x.valor, 4)}`)).join('')}</div>` : ''}
