@@ -336,8 +336,8 @@ const diaMes = iso => `${+iso.slice(8, 10)} ${MESES_C[+iso.slice(5, 7) - 1]}`;
 function renderViagem(m, d) {
   const v = d.viagem;
   if (!v) return '<section class="card"><p class="empty">Sem aba Viagem na planilha.</p></section>';
-  const segs = [['resumo', 'Resumo'], ['roteiro', 'Mapa'], ['porta', 'Roteiro'], ['docs', 'Documentos']];
-  const body = state.vsub === 'roteiro' ? renderViagemRoteiro(v) : state.vsub === 'porta' ? renderViagemPorta(v) : state.vsub === 'docs' ? renderViagemDocs(v) : renderViagemResumo(v);
+  const segs = [['resumo', 'Resumo'], ['roteiro', 'Mapa'], ['dias', 'Roteiro'], ['docs', 'Documentos']];
+  const body = state.vsub === 'roteiro' ? renderViagemRoteiro(v) : state.vsub === 'dias' ? renderViagemDias(v) : state.vsub === 'docs' ? renderViagemDocs(v) : renderViagemResumo(v);
   return `<div class="seg">${segs.map(([k, l]) => `<button data-vsub="${k}" class="${state.vsub === k ? 'active' : ''}">${l}</button>`).join('')}</div>${body}`;
 }
 
@@ -378,47 +378,53 @@ function renderViagemRoteiro(v) {
   </section>`;
 }
 
-// porta a porta: hospedagem → estação → trem/voo → estação → hospedagem (dados nas colunas X..AH da aba Viagem)
-const hm = s => { const [h, m] = String(s).split(':').map(Number); return h * 60 + m; };
-const hhmm = n => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
-const pares = s => String(s || '').split(';').map(p => p.split(',').map(Number)).filter(p => p.length === 2 && p.every(isFinite));
-const rota = (a, b, txt) => `https://www.google.com/maps/dir/?api=1&origin=${a}&destination=${b}&travelmode=${/^a pé/i.test(txt || '') ? 'walking' : 'transit'}`;
-const portaProntos = v => [...(v.trechos || [])].filter(t => t.embarque).sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+// roteiro dia a dia: cada dia fica na cidade onde dormimos (o último dia fica na última cidade); atividades vêm de Viagem!B65:H164
+const SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const maisDia = (iso, n) => { const x = new Date(iso + 'T12:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+const stCls = st => st === 'Comprado' ? 'good' : st === 'A comprar' ? 'warn' : '';
 
-function renderViagemPorta(v) {
-  const casa = nome => v.roteiro.find(c => c.cidade === String(nome || '').split(' (')[0]);
-  const faltam = [...(v.trechos || [])].filter(t => !t.embarque).sort((a, b) => (a.data || '').localeCompare(b.data || ''));
-  const step = (h, tit, ...subs) => `<div class="step"><b>${h}</b><div><span class="row-title wrap">${tit}</span>${subs.filter(Boolean).map(x => `<span class="row-sub">${x}</span>`).join('')}</div></div>`;
-  const cards = portaProntos(v).map((t, i) => {
-    const o = casa(t.de), dz = casa(t.para), [pc, pe, pd, pk] = pares(t.coords);
-    const parte = hm(t.partida), antes = t.antes || 0, ida = t.min_ida || 0;
-    const sair = parte - antes - ida, co = o && fmtHora(o.checkout), ci = dz && fmtHora(dz.checkin);
-    const cedo = co && hm(co) < sair, saida = cedo ? hm(co) : sair, emCasa = hm(t.chegada) + (t.min_volta || 0);
-    const link = (a, b, txt) => a && b ? `<a href="${rota(a, b, txt)}" target="_blank" rel="noopener">rota no Google Maps</a>` : '';
+function renderViagemDias(v) {
+  const dia = iso => String(iso || '').slice(0, 10);
+  const cidades = v.roteiro.filter(c => c.checkin && c.checkout).sort((a, b) => a.checkin.localeCompare(b.checkin));
+  if (!cidades.length) return '<section class="card"><p class="empty">Sem hospedagens com data.</p></section>';
+  const voos = (v.voos || []).filter(f => f.data && !/NÃO vamos embarcar/i.test(f.obs || ''));
+  const grupos = [];
+  for (let d = dia(cidades[0].checkin), fim = dia(cidades.at(-1).checkout); d <= fim; d = maisDia(d, 1)) {
+    const c = cidades.find(x => dia(x.checkin) <= d && d < dia(x.checkout)) || cidades.at(-1);
+    const saiu = cidades.find(x => x !== c && dia(x.checkout) === d);
+    const itens = [];
+    if (saiu || dia(c.checkout) === d) itens.push({ h: fmtHora((saiu || c).checkout), txt: `Check-out${saiu ? ` em ${saiu.cidade}` : ''}` });
+    if (dia(c.checkin) === d) itens.push({ h: fmtHora(c.checkin), txt: `Check-in · ${c.hospedagem || ''}` });
+    voos.forEach(f => {
+      const n = String(f.voo || '').split(' · ')[0];
+      if (dia(f.data) === d) itens.push({ h: f.saida, txt: `Voo ${n} · ${f.de} → ${f.para}` });
+      if (/\+1/.test(f.chegada || '') && maisDia(dia(f.data), 1) === d) itens.push({ h: String(f.chegada).slice(0, 5), txt: `Voo ${n} chega em ${f.para}` });
+    });
+    const ativ = (v.programacao || []).filter(a => dia(a.data) === d);
+    ativ.forEach(a => itens.push({ ...a, h: a.hora || '' }));
+    itens.sort((a, b) => (a.h || '24:00').localeCompare(b.h || '24:00'));
+    const g = grupos.at(-1), item = { d, c, saiu, itens, n: ativ.length };
+    if (g && g.pais === c.pais) g.dias.push(item); else grupos.push({ pais: c.pais, dias: [item] });
+  }
+  return grupos.map(g => {
+    const cids = [...new Set(g.dias.map(x => x.c.cidade))];
     return `
   <section class="card">
-    <h2>${diaMes(t.data)} · ${esc(t.de)} → ${esc(t.para)} <small>${esc(t.servico || '')}${t.duracao ? ` · ${esc(t.duracao)}` : ''}</small></h2>
-    <div class="steps">
-      ${step(hhmm(saida), cedo ? 'Check-out e saída' : 'Sair da hospedagem', o ? esc(o.hospedagem) : '', cedo ? `dá para sair até ${hhmm(sair)}` : co ? `check-out ${co}` : '')}
-      ${step(`~${hhmm(saida + ida)}`, esc(t.embarque), `${esc(t.ida || '')} ~${ida} min`, link(pc, pe, t.ida), `chegar até ${hhmm(parte - antes)} (${antes} min antes)`)}
-      ${step(esc(t.partida), `Partida · ${esc(t.servico || t.meio || '')}`)}
-      ${step(esc(t.chegada), esc(t.desembarque), 'hora local')}
-      ${step(`~${hhmm(emCasa)}`, `Hospedagem${dz ? ` · ${esc(dz.hospedagem)}` : ''}`, `${esc(t.volta || '')} ~${t.min_volta || 0} min`, link(pd, pk, t.volta),
-        ci ? `check-in a partir de ${ci}${emCasa < hm(ci) ? ' (chega antes do check-in)' : ''}` : '')}
-    </div>
-    <div class="mapas2"><div id="pp-${i}-a" class="mapa mini"></div><div id="pp-${i}-b" class="mapa mini"></div></div>
+    <h2>${esc(g.pais)} <small>${cids.map(esc).join(' · ')} · ${diaMes(g.dias[0].d)} a ${diaMes(g.dias.at(-1).d)}</small></h2>
+    <div class="list">${g.dias.map(x => `
+      <div class="trip">
+        <div class="trip-date ${x.n ? '' : 'todo'}"><b>${+x.d.slice(8, 10)}</b><span>${MESES_C[+x.d.slice(5, 7) - 1]}</span></div>
+        <div class="trip-main">
+          <span class="row-title">${SEM[new Date(x.d + 'T12:00').getDay()]} · ${x.saiu ? `${esc(x.saiu.cidade)} → ${esc(x.c.cidade)}` : esc(x.c.cidade)}</span>
+          ${x.itens.map(i => i.atividade ? `
+          <span class="ativ">${i.h ? `<b>${esc(i.h)}</b> ` : ''}${esc(i.atividade)}${i.cidade && i.cidade !== x.c.cidade ? ` <span class="muted">(${esc(i.cidade)})</span>` : ''}${i.status ? ` <span class="badge ${stCls(i.status)}">${esc(i.status)}</span>` : ''}</span>
+          ${i.obs ? `<span class="row-sub">${esc(i.obs)}</span>` : ''}${i.onde ? `<span class="row-sub">${linkSite(i.onde)}</span>` : ''}`
+          : `<span class="row-sub">${i.h ? `${esc(i.h)} · ` : ''}${esc(i.txt)}</span>`).join('')}
+          ${x.n ? '' : '<span class="row-sub">nada planejado ainda</span>'}
+        </div>
+      </div>`).join('')}</div>
   </section>`;
   }).join('');
-  return `${cards || '<section class="card"><p class="empty">Nenhum trecho com horário ainda. Manda o print do Omio.</p></section>'}
-  ${cards ? '<p class="legend-note">Mapas em linha reta, só para orientar. A rota de verdade abre no link do Google Maps. Horários com ~ são estimativa.</p>' : ''}
-  ${faltam.length ? `<section class="card">
-    <h2>A preencher <small>${faltam.length} trechos</small></h2>
-    <div class="list">${faltam.map(t => `
-      <div class="row"><div class="row-main">
-        <span class="row-title">${diaMes(t.data)} · ${esc(t.de)} → ${esc(t.para)}</span>
-        <span class="row-sub">${esc(t.meio || '')}</span>
-      </div></div>`).join('')}</div>
-  </section>` : ''}`;
 }
 
 function renderViagemDocs(v) {
@@ -608,28 +614,8 @@ function desenhaMapa(v) {
   state.maps.push(map);
 }
 
-function desenhaPorta(v) {
-  if (!window.L) return;
-  const cor = css('--accent');
-  portaProntos(v).forEach((t, i) => {
-    const [pc, pe, pd, pk] = pares(t.coords);
-    [[`pp-${i}-a`, pc, pe, 'Hospedagem', t.embarque, t.min_ida], [`pp-${i}-b`, pd, pk, t.desembarque, 'Hospedagem', t.min_volta]].forEach(([id, a, b, la, lb, min]) => {
-      const el = document.getElementById(id);
-      if (!el || !a || !b) return;
-      const map = L.map(el, { scrollWheelZoom: false });
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 18 }).addTo(map);
-      L.polyline([a, b], { color: cor, weight: 3, opacity: .9, dashArray: '6 8' }).bindTooltip(`~${min} min`).addTo(map);
-      [[a, la], [b, lb]].forEach(([p, l]) => L.circleMarker(p, { radius: 7, color: cor, fillColor: cor, fillOpacity: 1, weight: 2 })
-        .bindTooltip(esc(l), { permanent: true, direction: 'top', className: 'map-label' }).addTo(map));
-      map.fitBounds([a, b], { padding: [40, 40] });
-      state.maps.push(map);
-    });
-  });
-}
-
 function afterRender(m, d) {
   if (state.tab === 'viagem' && state.vsub === 'roteiro' && d.viagem) desenhaMapa(d.viagem);
-  if (state.tab === 'viagem' && state.vsub === 'porta' && d.viagem) desenhaPorta(d.viagem);
   if (state.tab === 'resumo') {
     const ms = d.meses.filter(x => situacao(x) !== 'Previsto');
     mkChart('ch-meses', 'bar', ms.map(x => x.rotulo), [

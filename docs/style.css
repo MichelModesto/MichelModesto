@@ -279,10 +279,5 @@ details summary::-webkit-details-marker { display: none; }
 .row-title.wrap { white-space: normal; }
 .seg + .card, .seg + .notice { margin-top: 0; }
 @media (prefers-color-scheme: dark) { .mapa .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); } }
-.steps { display: flex; flex-direction: column; gap: 12px; margin: 4px 0 14px; }
-.step { display: flex; gap: 12px; align-items: flex-start; }
-.step > b { flex: 0 0 50px; font-variant-numeric: tabular-nums; color: var(--accent); font-size: 14px; }
-.step > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.step .row-sub { white-space: normal; }
-.mapas2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
-.mapa.mini { height: 220px; }
+.ativ { font-size: 13px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.ativ b { color: var(--accent); font-variant-numeric: tabular-nums; }
