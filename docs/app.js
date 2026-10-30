@@ -262,7 +262,7 @@ function renderInvestir(m, d) {
       <div class="row">
         <div class="row-main">
           <span class="row-title">${esc(a.ativo)}</span>
-          <span class="row-sub"><span class="badge">${esc(a.classe)}</span><span>${num(a.qtd)} × ${brl(a.atual)}</span></span>
+          <span class="row-sub"><span class="badge">${esc(a.classe)}</span><span>${num(a.qtd, a.classe === 'Cripto' ? 8 : 2)} × ${brl(a.atual)}</span></span>
         </div>
         <div class="row-side">
           <span class="row-val">${brl(a.saldo)}</span>
