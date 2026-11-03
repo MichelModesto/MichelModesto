@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Eurotrip</title>
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; background: #14110f; color: #efe6d8; overflow: hidden; }
+  body { font-family: Georgia, "Times New Roman", serif; display: flex; flex-direction: column; justify-content: center; padding: 0 9vw; box-sizing: border-box; }
+  .rotulo { font-family: Helvetica, Arial, sans-serif; font-size: 1.6vw; letter-spacing: .3em; text-transform: uppercase; color: #b8a27a; }
+  #dias { font-size: 24vw; line-height: .9; margin: 2vw 0 0; font-weight: normal; }
+  .sub { font-size: 3.4vw; font-style: italic; margin-top: 5vw; }
+  .rota { font-family: Helvetica, Arial, sans-serif; font-size: 1.5vw; color: #8f8576; margin-top: 5vw; border-top: 1px solid #3a332c; padding-top: 2vw; letter-spacing: .05em; }
+</style>
+</head>
+<body>
+  <div class="rotulo">Embarque 23 abr 2027 · GRU 23:50</div>
+  <div id="dias">–</div>
+  <div class="sub" id="sub">dias para a Eurotrip</div>
+  <div class="rota">Londres · Paris · Milão · Roma · Madri · Barcelona</div>
+<script>
+  var EMBARQUE = new Date(2027, 3, 23); // dia do voo, hora local da TV
+
+  function atualizar() {
+    var hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    var dias = Math.round((EMBARQUE - hoje) / 864e5);
+    document.getElementById('dias').textContent = dias > 0 ? dias : 'Hoje';
+    document.getElementById('sub').textContent =
+      dias > 1 ? 'dias para a Eurotrip' : dias === 1 ? 'dia para a Eurotrip' : 'é dia de Eurotrip';
+  }
+  atualizar();
+  setInterval(atualizar, 60000);
+
+  // Voltar (10009) fecha o app
+  document.addEventListener('keydown', function (e) {
+    if (e.keyCode === 10009 && window.tizen) tizen.application.getCurrentApplication().exit();
+  });
+</script>
+</body>
+</html>

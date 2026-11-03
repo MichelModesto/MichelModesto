@@ -1,2 +1,6 @@
 financeiro/
 cotacao/build/
+prospeccao/.env
+prospeccao/leads.db
+prospeccao/saida/
+financeiro-mae/
