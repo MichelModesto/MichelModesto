@@ -16,7 +16,7 @@ const compact = v => Math.abs(v) >= 1000 ? (v / 1000).toLocaleString('pt-BR', { 
 const tile = (label, value, sub = '', cls = '') =>
   `<div class="tile"><div class="tile-label">${label}</div><div class="tile-value ${cls}">${value}</div>${sub ? `<div class="tile-sub">${sub}</div>` : ''}</div>`;
 
-const state = { dados: null, mes: 0, tab: 'resumo', sub: 'cartao', vsub: 'resumo', cat: 'Todas', maps: [] };
+const state = { layout: (() => { try { return localStorage.getItem('fin_layout') === '2' ? 2 : 1; } catch (e) { return 1; } })(), dados: null, mes: 0, tab: 'resumo', sub: 'cartao', vsub: 'resumo', cat: 'Todas', maps: [] };
 const charts = [];
 
 /* ---------- criptografia (WebCrypto) ---------- */
@@ -54,6 +54,7 @@ async function tryUnlock(pwd, remember) {
 
 function init() {
   $('#lock-form').addEventListener('submit', e => { e.preventDefault(); tryUnlock($('#pwd').value, $('#remember').checked); });
+  $('#layout').addEventListener('click', () => { state.layout = state.layout === 2 ? 1 : 2; try { localStorage.setItem('fin_layout', state.layout); } catch (e) { /* sem armazenamento */ } if (state.dados) render(true); });
   $('#logout').addEventListener('click', () => { localStorage.removeItem('fin_pwd'); location.reload(); });
   let saved = null;
   try { saved = localStorage.getItem('fin_pwd'); } catch (e) { /* armazenamento bloqueado */ }
@@ -98,6 +99,8 @@ function render(toTop = false) {
   state.maps.forEach(x => x.remove()); state.maps = [];
   const d = state.dados, m = d.meses[state.mes];
   $$('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
+  $('#layout').textContent = `Layout ${state.layout}`;
+  $('#layout').title = state.layout === 2 ? 'Trocar para o layout 1' : 'Trocar para o layout 2';
   $('#months').classList.toggle('hidden', !(state.tab === 'resumo' || state.tab === 'gastos'));
   const views = { resumo: renderResumo, gastos: renderGastos, investir: renderInvestir, imovel: renderImovel, viagem: renderViagem, metas: renderMetas };
   $('#view').innerHTML = views[state.tab](m, d);
@@ -111,24 +114,54 @@ function renderResumo(m, d) {
   const cats = m.categorias.filter(c => c.total > 0).sort((a, b) => b.total - a.total);
   const max = cats.length ? cats[0].total : 1;
   const comReal = m.fixos.filter(f => f.real != null).length;
+  // livre = o que sobra da renda para cartão e Pix depois de dízimo, fixos e aportes
+  const livre = m.entradas - r.dizimo - r.fixos - r.aportes, gasto = r.cartao + r.variaveis, resta = livre - gasto;
+  const dias = s === 'Em curso' ? new Date(m.ano, m.mes, 0).getDate() - new Date().getDate() + 1 : 0;
+  const uso = Math.min(100, gasto / Math.max(1, livre) * 100);
   const tiles = [
     ['Entradas', brl(m.entradas), m.outras ? `líquido ${brl(m.liquido)} + outras ${brl(m.outras)}` : 'salário líquido'],
+    ['Saídas', brl(r.saidas), `${pct(p)} da renda comprometida`],
+    ['Sobra do mês', brl(r.sobra), `saldo após investir ${brl(r.saldo)}`, sign(r.sobra)],
     ['Dízimo', brl(r.dizimo), `${pct(d.pct_dizimo, 0)} do bruto de ${brl(m.bruto)}`],
     ['Gastos fixos', brl(r.fixos), `${comReal} de ${m.fixos.length} com valor real`],
-    ['Cartão', brl(r.cartao), `${m.cartao.length} lançamentos`],
-    ['Débito / Pix', brl(r.variaveis), `${m.variaveis.length} lançamentos`],
-    ['Aportes', brl(r.aportes), `saldo após investir ${brl(r.saldo)}`],
+    ['Aportes', brl(r.aportes), r.variaveis ? `débito / Pix ${brl(r.variaveis)}` : 'investido no mês'],
   ];
-  return `
-  <section class="card">
-    <div class="hero-label">Sobra de ${esc(m.nome)} <span class="badge ${sitClass(s)}">${s}</span></div>
-    <div class="hero-value ${sign(r.sobra)}">${brl(r.sobra)}</div>
-    <div class="hero-sub">Entradas <b>${brl(m.entradas)}</b> · Saídas <b>${brl(r.saidas)}</b></div>
-    <div class="meter"><div class="meter-fill ${p >= .9 ? 'crit' : p >= .75 ? 'warn' : ''}" style="width:${Math.min(100, p * 100)}%"></div></div>
-    <div class="meter-label">${pct(p)} da renda comprometida</div>
-  </section>
-  <section class="kpis">${tiles.map(([l, v, sub]) => tile(l, v, esc(sub))).join('')}</section>
-  <section class="card">
+  const ult = [...m.cartao].sort((a, b) => (b.data || '').localeCompare(a.data || '')).slice(0, 7);
+  const fx = m.fixos.filter(f => f.previsto > 0 || f.real > 0).sort((a, b) => (a.pago === 'Sim') - (b.pago === 'Sim') || (a.dia || 99) - (b.dia || 99));
+  const abertas = fx.filter(f => f.pago !== 'Sim');
+  const cc = `
+    <div class="cc">
+      <div class="cc-chip"></div>
+      <div><small>Fatura de ${esc(m.rotulo)} · ${m.cartao.length} lançamentos</small><strong class="num">${brl(r.cartao)}</strong></div>
+      <div class="cc-nm"><span>Michel Modesto</span><span>Latam Pass</span></div>
+    </div>`;
+  const rotulo = s === 'Em curso' ? 'Pode gastar hoje' : s === 'Fechado' ? 'Sobrou livre no mês' : 'Livre previsto no mês';
+  const usoTxt = `${pct(gasto / Math.max(1, livre), 0)} do livre do mês usado · restam ${brl(resta)} de ${brl(livre)}${dias ? ` · ${dias} dias até o fim do mês` : ''}`;
+  const kpis = `<section class="kpis">${tiles.map(([l, v, sub, c]) => tile(l, v, esc(sub), c || '')).join('')}</section>`;
+  const extrato = (q, cls) => `
+  <section class="card ${cls}">
+    <h2>Extrato do cartão <small>${m.cartao.length} lançamentos</small></h2>
+    ${ult.length ? `<div class="list">${ult.slice(0, q).map(c => `
+      <div class="row">
+        <div class="row-main">
+          <span class="row-title">${esc(c.descricao)}</span>
+          <span class="row-sub">${c.categoria ? `<span class="badge">${esc(c.categoria)}</span>` : ''}${c.parcela ? `<span>parcela ${esc(c.parcela)}</span>` : ''}</span>
+        </div>
+        <div class="row-side"><span class="row-val num">${brl(c.valor)}</span><span class="row-date">${c.data ? fmtDia(c.data) : 'parcela fixa'}</span></div>
+      </div>`).join('')}</div><button class="mais" data-tab="gastos" data-sub="cartao">Ver a fatura inteira</button>` : '<p class="empty">Nenhuma compra lançada ainda.</p>'}
+  </section>`;
+  const contas = (q, cls) => `
+  <section class="card ${cls}">
+    <h2>Contas do mês <small>${abertas.length} a pagar · ${brl(abertas.reduce((a, f) => a + f.previsto, 0))}</small></h2>
+    <div class="list">${fx.slice(0, q).map(f => `
+      <div class="row">
+        <div class="row-main"><span class="row-title">${esc(f.nome)}</span><span class="row-sub">${f.dia ? `dia ${f.dia}` : 'sem dia definido'}</span></div>
+        <div class="row-side"><span class="row-val num">${brl(f.real ?? f.previsto)}</span><span class="badge ${f.pago === 'Sim' ? 'good' : 'warn'}">${f.pago === 'Sim' ? 'Pago' : 'A pagar'}</span></div>
+      </div>`).join('')}</div>
+    ${fx.length > q ? '<button class="mais" data-tab="gastos" data-sub="fixos">Ver todas as contas</button>' : ''}
+  </section>`;
+  const categorias = cls => `
+  <section class="card ${cls}">
     <h2>Gastos por categoria <small>sem dízimo</small></h2>
     ${cats.length ? `<div class="bars">${cats.map(c => `
       <div class="bar-row">
@@ -136,8 +169,92 @@ function renderResumo(m, d) {
         <span class="bar-val">${brl(c.total)}<span class="bar-pct">${pct(c.pct, 0)}</span></span>
         <div class="bar-track"><div class="bar-fill" style="width:${c.total / max * 100}%"></div></div>
       </div>`).join('')}</div>` : '<p class="empty">Nada lançado ainda.</p>'}
+  </section>`;
+  const grafico = cls => `<section class="card ${cls}"><h2>Mês a mês <small>entradas × saídas</small></h2><div class="chart tall"><canvas id="ch-meses"></canvas></div></section>`;
+
+  if (state.layout === 2) {
+    const car = d.carteira, f = d.financiamento, v = d.viagem;
+    const cl = car.classes.filter(c => c.saldo > 0), ideais = car.classes.filter(c => c.ideal > 0);
+    const ativos = [...car.ativos].sort((a, b) => b.saldo - a.saldo).slice(0, 6);
+    const dv = v ? Math.ceil((new Date(v.chegada) - new Date()) / 864e5) : 0;
+    const svg = t => $(`#tabbar [data-tab="${t}"] svg`).outerHTML;
+    const at = [['Fatura', 'gastos', 'cartao'], ['Contas', 'gastos', 'fixos'], ['Débito / Pix', 'gastos', 'variaveis'], ['Carteira', 'investir'], ['Imóvel', 'imovel'], ['Viagem', 'viagem'], ['Metas', 'metas']];
+    return `
+  <section class="card ouro c4">
+    <div class="hero-label">${rotulo}</div>
+    <div class="hero-value num">${brl(dias ? resta / dias : resta)}</div>
+    <div class="hero-sub">Sobra do mês <b>${brl(r.sobra)}</b> · ${s.toLowerCase()}</div>
+    <div class="meter"><div class="meter-fill" style="width:${uso}%"></div></div>
+    <div class="meter-label">${usoTxt}</div>
   </section>
-  <section class="card"><h2>Mês a mês <small>entradas × saídas</small></h2><div class="chart"><canvas id="ch-meses"></canvas></div></section>`;
+  <div class="c4">${cc}</div>
+  <section class="card c4">
+    <h2>Atalhos</h2>
+    <div class="atalhos q">${at.map(([l, t, sub]) => `<button data-tab="${t}" ${sub ? `data-sub="${sub}"` : ''}>${svg(t)}<span>${l}</span></button>`).join('')}</div>
+  </section>
+  <section class="card c8">
+    <div class="hero-label">Patrimônio investido ${car.atualizado_em ? `<span class="badge">em ${fmtDate(car.atualizado_em)}</span>` : ''} <span class="badge accent">${car.ativos.length} ativos</span></div>
+    <div class="hero-value num">${brl(car.total.saldo)}</div>
+    <div class="hero-sub"><b class="${sign(car.total.resultado)}">${brl(car.total.resultado)} (${pct(car.total.rentab, 1)})</b> sobre o custo · proventos <b>${brl(car.proventos_total)}</b></div>
+    <div class="cls-bar">${cl.map((c, i) => `<i style="flex:${c.saldo};background:var(--k${i % 5 + 1})"></i>`).join('')}</div>
+    <div class="cls-leg">${cl.map((c, i) => `<span><i style="background:var(--k${i % 5 + 1})"></i>${esc(c.classe)} <b class="num">${brl(c.saldo)}</b></span>`).join('')}</div>
+  </section>
+  <div class="k8-col c4">
+    ${tile('Sobra do mês', brl(r.sobra), `${pct(p)} da renda comprometida`, sign(r.sobra))}
+    ${tile('Fatura do cartão', brl(r.cartao), `${m.cartao.length} lançamentos`)}
+  </div>
+  ${kpis.replace('class="kpis"', 'class="kpis seis"')}
+  ${grafico('c6')}
+  <section class="card c3">
+    <h2>Alocação <small>atual × ideal</small></h2>
+    <div class="bars">${ideais.map(c => `
+      <div class="bar-row">
+        <span class="bar-name">${esc(c.classe)}</span>
+        <span class="bar-val">${pct(c.pct, 0)}<span class="bar-pct">de ${pct(c.ideal, 0)}</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, c.pct * 100)}%"></div><i class="bar-tick" style="left:${Math.min(100, c.ideal * 100)}%"></i></div>
+        ${c.falta > 0 ? `<span class="row-sub" style="grid-column:1/-1">faltam ${brl(c.falta)}</span>` : ''}
+      </div>`).join('')}</div>
+  </section>
+  <div class="k8-col c3">
+    ${v ? tile('Eurotrip · Londres', dv > 0 ? `${dv} dias` : 'Em viagem', `chegada ${fmtDate(v.chegada)} · ${v.documentos.filter(x => x.status === 'Pendente').length} documentos pendentes`) : ''}
+    ${tile('Apartamento', `${f.pagas}/${f.prazo}`, `parcelas pagas · deve ${brl(f.saldo_devedor)}`)}
+  </div>
+  <section class="card c4">
+    <h2>Carteira <small>${brl(car.total.saldo)}</small></h2>
+    <div class="list">${ativos.map(a => `
+      <div class="row">
+        <div class="row-main"><span class="row-title">${esc(a.ativo)}</span><span class="row-sub"><span class="badge">${esc(a.classe)}</span></span></div>
+        <div class="row-side"><span class="row-val num">${brl(a.saldo)}</span><span class="row-val small ${sign(a.resultado)}">${pct(a.rentab, 1)}</span></div>
+      </div>`).join('')}</div>
+    <button class="mais" data-tab="investir">Ver a carteira inteira</button>
+  </section>
+  ${extrato(6, 'c4')}
+  ${contas(6, 'c4')}
+  ${categorias('c12')}`;
+  }
+
+  return `
+  <div class="k8-col c5">${cc}
+    <div class="atalhos">
+      <button data-tab="gastos" data-sub="cartao">Fatura</button>
+      <button data-tab="gastos" data-sub="fixos">Contas</button>
+      <button data-tab="investir">Carteira</button>
+      <button data-tab="viagem">Viagem</button>
+    </div>
+  </div>
+  <div class="k8-col c7">
+    <section class="card">
+      <div class="hero-label">${rotulo} <span class="badge ${sitClass(s)}">${esc(m.rotulo)} · ${s}</span></div>
+      <div class="hero-value num ${sign(resta)}">${brl(dias ? resta / dias : resta)}</div>
+      <div class="meter"><div class="meter-fill ${uso >= 100 ? 'crit' : uso >= 90 ? 'warn' : ''}" style="width:${uso}%"></div></div>
+      <div class="meter-label">${usoTxt}</div>
+    </section>
+    ${kpis}
+  </div>
+  ${extrato(7, 'c7')}
+  ${contas(99, 'c5')}
+  ${categorias('c6')}
+  ${grafico('c6')}`;
 }
 
 /* --- Gastos --- */
@@ -644,5 +761,5 @@ document.addEventListener('click', e => {
   render(toTop);
 });
 
-if (window.Chart) Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+if (window.Chart) Chart.defaults.font.family = 'Lexend, system-ui, sans-serif';
 init();
