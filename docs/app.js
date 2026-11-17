@@ -124,8 +124,13 @@ function renderResumo(m, d) {
     ['Sobra do mês', brl(r.sobra), `saldo após investir ${brl(r.saldo)}`, sign(r.sobra)],
     ['Dízimo', brl(r.dizimo), `${pct(d.pct_dizimo, 0)} do bruto de ${brl(m.bruto)}`],
     ['Gastos fixos', brl(r.fixos), `${comReal} de ${m.fixos.length} com valor real`],
-    ['Aportes', brl(r.aportes), r.variaveis ? `débito / Pix ${brl(r.variaveis)}` : 'investido no mês'],
+    r.aportes < 0
+      ? ['Resgate', brl(-r.aportes), 'tirado dos investimentos · esporádico']
+      : ['Aportes', brl(r.aportes), r.variaveis ? `débito / Pix ${brl(r.variaveis)}` : 'investido no mês'],
   ];
+  // aporte negativo = resgate: dinheiro esporádico que entra no livre do mês
+  const resg = Math.max(0, -r.aportes);
+  const esporadico = resg ? `<div class="hero-sub">Do salário <b>${brl(resta - resg)}</b> + resgate dos investimentos <b>${brl(resg)}</b> (esporádico)</div>` : '';
   const ult = [...m.cartao].sort((a, b) => (b.data || '').localeCompare(a.data || '')).slice(0, 7);
   const fx = m.fixos.filter(f => f.previsto > 0 || f.real > 0).sort((a, b) => (a.pago === 'Sim') - (b.pago === 'Sim') || (a.dia || 99) - (b.dia || 99));
   const abertas = fx.filter(f => f.pago !== 'Sim');
@@ -183,6 +188,7 @@ function renderResumo(m, d) {
   <section class="card ouro c4">
     <div class="hero-label">${rotulo}</div>
     <div class="hero-value num">${brl(resta)}</div>
+    ${esporadico}
     <div class="hero-sub">Sobra do mês <b>${brl(r.sobra)}</b> · ${s.toLowerCase()}</div>
     <div class="meter"><div class="meter-fill" style="width:${uso}%"></div></div>
     <div class="meter-label">${usoTxt}</div>
@@ -246,6 +252,7 @@ function renderResumo(m, d) {
     <section class="card">
       <div class="hero-label">${rotulo} <span class="badge ${sitClass(s)}">${esc(m.rotulo)} · ${s}</span></div>
       <div class="hero-value num ${sign(resta)}">${brl(resta)}</div>
+      ${esporadico}
       <div class="meter"><div class="meter-fill ${uso >= 100 ? 'crit' : uso >= 90 ? 'warn' : ''}" style="width:${uso}%"></div></div>
       <div class="meter-label">${usoTxt}</div>
     </section>
