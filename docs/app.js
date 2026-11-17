@@ -135,7 +135,7 @@ function renderResumo(m, d) {
       <div><small>Fatura de ${esc(m.rotulo)} · ${m.cartao.length} lançamentos</small><strong class="num">${brl(r.cartao)}</strong></div>
       <div class="cc-nm"><span>Michel Modesto</span><span>Latam Pass</span></div>
     </div>`;
-  const rotulo = s === 'Em curso' ? 'Pode gastar hoje' : s === 'Fechado' ? 'Sobrou livre no mês' : 'Livre previsto no mês';
+  const rotulo = s === 'Em curso' ? 'Livre até o fim do mês' : s === 'Fechado' ? 'Sobrou livre no mês' : 'Livre previsto no mês';
   const usoTxt = `${pct(gasto / Math.max(1, livre), 0)} do livre do mês usado · restam ${brl(resta)} de ${brl(livre)}${dias ? ` · ${dias} dias até o fim do mês` : ''}`;
   const kpis = `<section class="kpis">${tiles.map(([l, v, sub, c]) => tile(l, v, esc(sub), c || '')).join('')}</section>`;
   const extrato = (q, cls) => `
@@ -182,7 +182,7 @@ function renderResumo(m, d) {
     return `
   <section class="card ouro c4">
     <div class="hero-label">${rotulo}</div>
-    <div class="hero-value num">${brl(dias ? resta / dias : resta)}</div>
+    <div class="hero-value num">${brl(resta)}</div>
     <div class="hero-sub">Sobra do mês <b>${brl(r.sobra)}</b> · ${s.toLowerCase()}</div>
     <div class="meter"><div class="meter-fill" style="width:${uso}%"></div></div>
     <div class="meter-label">${usoTxt}</div>
@@ -245,7 +245,7 @@ function renderResumo(m, d) {
   <div class="k8-col c7">
     <section class="card">
       <div class="hero-label">${rotulo} <span class="badge ${sitClass(s)}">${esc(m.rotulo)} · ${s}</span></div>
-      <div class="hero-value num ${sign(resta)}">${brl(dias ? resta / dias : resta)}</div>
+      <div class="hero-value num ${sign(resta)}">${brl(resta)}</div>
       <div class="meter"><div class="meter-fill ${uso >= 100 ? 'crit' : uso >= 90 ? 'warn' : ''}" style="width:${uso}%"></div></div>
       <div class="meter-label">${usoTxt}</div>
     </section>
